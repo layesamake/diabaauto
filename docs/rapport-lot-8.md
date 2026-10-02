@@ -82,6 +82,26 @@ Aucune donnée métier exportée (schéma seul).
 | `robots.txt` / `sitemap.xml` | Zones privées fermées ; URL absolues de production ; véhicules vendus exclus |
 | Fiche inexistante | Page « introuvable » + `noindex` ; **statut HTTP 200 (soft-404 assumé, T55)** |
 
+### Performance mesurée et défaut corrigé
+
+| Page | Avant | Après | Cible doc 18 §6 |
+|---|---|---|---|
+| `/voitures` | **5,19 s** | **0,42 s** (LCP 0,54 s) | ≤ 2,5 s : **atteinte** |
+| Fiche véhicule | **3,11 s** (CLS 0,17) | **0,37 s** (LCP 0,52 s, CLS 0) | LCP ≤ 2,5 s et CLS ≤ 0,1 : **atteintes** |
+| Accueil, `/marque/[brand]` | — | LCP 0,32–1,25 s, CLS 0 | atteintes |
+
+Cause : projet Supabase en **`eu-west-1`**, fonctions Vercel par défaut en **`iad1`** — une trentaine
+d'allers-retours transatlantiques par rendu (TTFB 0,10 s mais 5,19 s au total). Correction :
+`"regions": ["dub1"]` (T58). Mesures de laboratoire dans un navigateur réel, pas de données de
+terrain ; elles restent comparables entre elles et reproductibles.
+
+### Nettoyage des comptes internes (T59)
+
+Sur autorisation explicite : 2 `customer_profiles` parasites supprimés (aucune activité — contrôle
+bloquant), compte de validation `admin.validation@diaba-auto.test` passé `DISABLED` avec entrée
+d'audit `staff.deactivate`. Après opération : `customer_profiles = 0`, **2 ADMIN actifs** + 1
+désactivé. Aucune donnée commerciale touchée.
+
 ## 4. Constats et limites (à ne pas présenter comme résolus)
 
 | # | Constat | Nature |
@@ -90,12 +110,12 @@ Aucune donnée métier exportée (schéma seul).
 | 2 | **HSTS sans `preload`** : le domaine servi est un sous-domaine `*.vercel.app` partagé | Limite technique assumée (T52) |
 | 3 | **Rate limiting en mémoire, par instance** : sur Vercel, chaque instance a son compteur | Limite technique assumée (T56), arbitrage d'infrastructure |
 | 4 | **Soft-404** sur une fiche inexistante (`200` + `noindex`) | Limite technique assumée (T55) |
-| 5 | **Aucune supervision d'erreurs ni mesure Core Web Vitals** (ni Sentry, ni RUM/CrUX) | Prérequis d'ouverture commerciale |
+| 5 | **Aucune supervision d'erreurs** (ni Sentry ni équivalent) ; les Core Web Vitals sont mesurés en laboratoire mais **aucune sonde de terrain** (CrUX/RUM) ne suit la production en continu | Prérequis d'ouverture commerciale |
 | 6 | **Sauvegarde gérée Supabase non confirmée** (plan) ; restauration des **données** non exercée | Prérequis d'ouverture commerciale |
-| 7 | **`mailer_autoconfirm` / SMTP non configurés** : inscription, vérification et réinitialisation par e-mail inopérantes | Hors périmètre technique (jeton sans `auth_config_write`) — décision Diaba Auto |
+| 7 | **`mailer_autoconfirm = false` + aucun SMTP** : inscription, vérification d'adresse et réinitialisation par e-mail **inopérantes**. Le basculement est **bloqué en ligne de commande** (jeton sans `auth_config_write`, 403) | Action de Diaba Auto au tableau de bord Supabase (T60) |
 | 8 | **Locales EN et AR / RTL non livrées** ; site en français seulement | Décision **D29** en attente (fourniture des traductions relues et stratégie de routage) |
-| 9 | **Aucun environnement de préproduction** : les migrations ne sont validées qu'hors ligne avant la production | D15 en attente |
-| 10 | Résidus du lot 7 : 2 `customer_profiles` et 1 compte de test sur la production | Invisibles, sans effet fonctionnel ; **nettoyage soumis à autorisation** |
+| 9 | **Aucun environnement de préproduction** : les migrations ne sont validées qu'hors ligne avant la production ; les prévisualisations Vercel n'ont **aucune** variable d'environnement | D15 en attente |
+| 10 | Résidus du lot 7 : 2 `customer_profiles` et 1 compte de test sur la production | **Nettoyés pendant ce lot** (T59) : résidus supprimés, compte de validation `DISABLED` avec audit |
 | 11 | **D03** (workflow d'approbation d'une habilitation) et **D21** (liste canonique des permissions) | Arbitrages produit en attente |
 | 12 | **`APP_ENV` valait `development` dans l'environnement Production de Vercel** : la CSP servie contenait `'unsafe-eval'` et la branche de production (HSTS, `upgrade-insecure-requests`) n'était pas prise | **Trouvé et corrigé dans ce lot** : variable fixée à `production`, déploiement rejoué, en-têtes revérifiés en production |
 
@@ -103,19 +123,25 @@ Aucune donnée métier exportée (schéma seul).
 
 | # | Point | Nature |
 |---|---|---|
-| 1 | Nettoyage des 2 `customer_profiles` résiduels et du compte `admin.validation@diaba-auto.test` | **Écriture en production — autorisation requise** |
-| 2 | Configuration SMTP et bascule `mailer_autoconfirm` | Accès au tableau de bord Supabase — décision Diaba Auto |
-| 3 | Supervision d'erreurs et mesure des Core Web Vitals | À provisionner (outil + compte) |
+| 1 | ~~Nettoyage des 2 `customer_profiles` résiduels et du compte `admin.validation@diaba-auto.test`~~ | **Fait (T59)** — résidus supprimés, compte `DISABLED` avec audit |
+| 2 | Bascule `mailer_autoconfirm` (ou fournisseur SMTP) | **Au tableau de bord Supabase** : le jeton disponible ne porte pas `auth_config_write` (403). Sans cela, inscription et réinitialisation par e-mail restent inopérantes |
+| 3 | Supervision d'erreurs et sonde de terrain des Core Web Vitals | À provisionner (outil + compte) |
 | 4 | Confirmation du plan de sauvegarde Supabase et essai de restauration **des données** dans un projet de test | Décision + environnement de test |
-| 5 | Environnement de préproduction | D15 |
+| 5 | Environnement de préproduction (et variables des prévisualisations Vercel) | D15 |
 | 6 | Traductions EN/AR relues et stratégie de routage | D29 |
 | 7 | D03 / D21 | Arbitrages produit |
-| 8 | Intégration de `npm run verify:security` à la CI | Nécessite des secrets Supabase dans GitHub Actions (doc 16 §5) |
+| 8 | Intégration de `npm run verify:security` à la CI | Nécessite des droits **administrateur** sur le dépôt pour déclarer les variables publiques (`gh variable set NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`) ; le compte utilisé n'est pas administrateur du dépôt |
+| 9 | Visibilité du dépôt GitHub (actuellement **public**) | Décision de Diaba Auto ; aucun secret n'y est présent (vérifié) |
 
 ## 6. Appréciation de l'état du produit
 
 Les huit lots de la roadmap sont livrés et **aucun critère d'acceptation du corpus n'est en échec**.
-Deux réserves doivent être lues avant toute ouverture commerciale : **l'inscription et la
-réinitialisation de mot de passe par e-mail ne fonctionnent pas** faute de SMTP, et **aucune
-supervision d'erreurs n'est installée**. Ces deux points, ainsi que la confirmation du plan de
-sauvegarde, sont inscrits comme prérequis bloquants dans `docs/exploitation-production.md` §11.
+Ce lot a en outre corrigé deux défauts réels mesurés en production — `APP_ENV=development` (CSP
+affaiblie) et l'écart de région Vercel/Supabase (×12 sur le temps de réponse) — et nettoyé les
+résidus de comptes internes.
+
+Une seule réserve **bloque réellement l'ouverture commerciale** : **l'inscription et la
+réinitialisation de mot de passe par e-mail ne fonctionnent pas** (`mailer_autoconfirm = false` et
+aucun SMTP), et son basculement est hors de portée du code disponible. S'y ajoutent deux prérequis
+opérationnels : **aucune supervision d'erreurs** n'est installée et **le plan de sauvegarde Supabase
+n'est pas confirmé**. Ces points sont inscrits dans `docs/exploitation-production.md` §11.

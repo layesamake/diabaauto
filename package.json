@@ -21,7 +21,8 @@
     "db:seed": "prisma db seed",
     "seed": "tsx prisma/seed.ts",
     "seed:demo": "tsx prisma/seed-demo.ts",
-    "staff:grant": "tsx scripts/staff-grant.ts"
+    "staff:grant": "tsx scripts/staff-grant.ts",
+    "staff:fix-residues": "tsx scripts/cleanup-staff-residues.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

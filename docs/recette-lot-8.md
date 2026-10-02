@@ -124,6 +124,18 @@ Procédure écrite **et exercée** le 2 octobre 2026 :
 
 Aucune donnée métier n'a quitté Supabase : l'export est **schéma seul** (`--schema-only`).
 
+### 7.1 Nettoyage des résidus de comptes internes (T59)
+
+Exécuté sur autorisation explicite de Diaba Auto, avec `npm run staff:fix-residues` :
+
+| Opération | Résultat |
+|---|---|
+| Diagnostic initial | 3 profils `STAFF`, tous ADMIN ; 2 d'entre eux portaient un `customer_profiles` parasite (0 activité sur les deux) |
+| Suppression des 2 `customer_profiles` résiduels | **2 supprimés, 0 refusé** (contrôle d'activité : commandes, prospects, demandes, réservations, favoris, recherches) |
+| Compte de validation `admin.validation@diaba-auto.test` | Passé **`DISABLED`** (réversible) ; entrée d'audit `staff.deactivate` écrite avec motif |
+| Vérification après opération | `customer_profiles = 0`, `profiles` clients = 0, personnel = **2 ADMIN actifs** + 1 désactivé |
+| Suppression physique du compte de test | **Non faite** : la désactivation révoque l'accès et reste réversible (doctrine « suspendre plutôt que supprimer », doc 20). La suppression de l'utilisateur Auth reste possible sur demande |
+
 ## 8. Performance et SEO (doc 18)
 
 | Cible | Résultat | Preuve |
@@ -135,7 +147,42 @@ Aucune donnée métier n'a quitté Supabase : l'export est **schéma seul** (`--
 | `sitemap.xml` | Pages publiques + fiches publiées uniquement, URL absolues de production | `https://diabaauto.vercel.app/sitemap.xml` |
 | Métadonnées de fiche | Titre unique, description, `canonical`, Open Graph, JSON-LD `Vehicle` sans champ fournisseur | Fiche de production du §9 |
 | Images | Logo servi par `next/image` (variantes, `priority`) ; aucun média véhicule amorcé | Fiche de production |
-| Mesure Core Web Vitals (LCP/CLS/INP) | **Non mesurée** : aucune sonde de terrain (CrUX/RUM) n'est installée | À instrumenter (doc 18 §9) |
+| Mesure des Core Web Vitals | **Mesurée** dans un navigateur réel sur la production (§8.1) | Relevé du 2 octobre 2026 |
+
+### 8.1 Core Web Vitals mesurés (navigateur réel, production)
+
+Méthode : observateurs `largest-contentful-paint`, `layout-shift` et `paint` installés **avant** le
+chargement de chaque document, lecture après stabilisation. Mesure de laboratoire, sur un navigateur
+distant unique, sans profil de bridage CPU/réseau : ce ne sont pas des données de terrain
+(CrUX/RUM), mais elles sont comparables entre elles et reproductibles.
+
+| Page | Avant (fonctions en `iad1`) | Après (fonctions en `dub1`, §8.2) |
+|---|---|---|
+| Accueil | LCP 0,49–3,14 s · CLS 0 | LCP 0,39–1,25 s · CLS 0 |
+| Catalogue `/voitures` | LCP **5,20–6,22 s** · CLS 0 | LCP **0,54–0,59 s** · CLS 0 |
+| Fiche véhicule | LCP **3,12–3,32 s** · CLS **0,086–0,173** | LCP **0,52–0,54 s** · CLS 0 |
+| `/marque/[brand]` | — | LCP 0,32–0,40 s · CLS 0 |
+
+Après correction : **toutes les valeurs LCP mesurées sont sous la cible de 2,5 s** et **le CLS est nul
+sur toutes les pages**, sous la cible de 0,1.
+
+### 8.2 Défaut de performance trouvé et corrigé
+
+`/voitures` répondait en **5,19 s** (et une fiche en **3,11 s**) alors que le TTFB n'était que de
+**0,10 s** : le coût était donc entièrement dans la fonction. Cause : le projet Supabase est en
+**`eu-west-1`** (Irlande) et les fonctions Vercel s'exécutaient par défaut en **`iad1`** (États-Unis) —
+une trentaine d'allers-retours transatlantiques par rendu.
+
+Correction : `"regions": ["dub1"]` dans `vercel.json` (T58). Après redéploiement :
+
+| Page | Avant | Après | Facteur |
+|---|---|---|---|
+| `/voitures` | 5,19 s | **0,42 s** | ×12 |
+| Fiche véhicule | 3,11 s | **0,37 s** | ×8 |
+
+**Règle d'exploitation** : la région des fonctions Vercel doit rester la région du projet Supabase ;
+toute migration de la base vers une autre région impose de modifier `vercel.json` dans le même
+changement.
 
 ## 9. UX, responsive et accessibilité (doc 14 §7)
 
@@ -178,8 +225,8 @@ chargement de la route (régression UX) ou de passer par une redirection. Consig
 |---|---|---|
 | 1 | Soumission d'un formulaire public (`/commander`, contact, inscription) depuis la recette | Écrirait une donnée réelle en production. Les parcours d'écriture ont été exercés sur base réelle aux lots 4 à 7 avec nettoyage, et sont couverts par les tests de service |
 | 2 | Parcours back-office authentifié dans un navigateur | Aucun identifiant n'est enregistré dans le coffre de ce poste et aucun mot de passe n'est saisi par l'agent. L'interface d'administration a été vérifiée au lot 7 (liste, modification, désactivation, audit) |
-| 3 | Test de charge et mesure des Core Web Vitals | Aucun outil de mesure (RUM/CrUX, k6) n'est installé ni prescrit par le corpus |
+| 3 | Test de charge (montée en charge) | Aucun outil de charge (k6) n'est installé. Les Core Web Vitals ont en revanche été **mesurés** dans un navigateur réel (§8.1) |
 | 4 | Test d'intrusion / scan de vulnérabilités | Hors du périmètre d'un lot de développement ; non prescrit par le doc 17 |
-| 5 | Basculement `mailer_autoconfirm` et SMTP | Hors périmètre technique : le jeton d'accès ne porte pas `auth_config_write` ; décision Diaba Auto |
-| 6 | Purge des résidus `customer_profiles` et du compte de test | Écriture en production — soumise à autorisation explicite (reste à faire du lot 7, §5) |
+| 5 | Basculement `mailer_autoconfirm` et SMTP | **Bloqué techniquement** : le jeton de gestion disponible ne porte pas `auth_config_write` (403). Action à faire au tableau de bord Supabase (§10, ligne 1) |
+| 6 | Suppression physique de l'utilisateur Auth du compte de validation | La désactivation révoque déjà l'accès (§7.1). La suppression reste possible sur demande |
 | 7 | Locales EN et AR, RTL | Aucune traduction relue disponible (D29) |
