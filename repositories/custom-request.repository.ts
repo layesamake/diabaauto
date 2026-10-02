@@ -72,6 +72,8 @@ export type CustomRequestClient = {
         customerId: string | null;
         contactName: string | null;
         contactPhone: string | null;
+        requestedBrand: string | null;
+        requestedModel: string | null;
         criteriaJson: Prisma.InputJsonValue;
         budgetMin: string | null;
         budgetMax: string | null;
@@ -105,6 +107,8 @@ export function createCustomRequestRepository(
           customerId: data.customerId,
           contactName: data.contactName,
           contactPhone: data.contactPhone,
+          requestedBrand: data.requestedBrand,
+          requestedModel: data.requestedModel,
           criteriaJson: data.criteriaJson as Prisma.InputJsonValue,
           budgetMin: data.budgetMin,
           budgetMax: data.budgetMax,

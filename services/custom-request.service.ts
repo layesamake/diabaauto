@@ -71,6 +71,9 @@ export type CustomRequestCreateData = {
   contactName: string | null;
   contactPhone: string | null;
   criteriaJson: CustomRequestCriteria;
+  /** Colonnes du corpus (doc 03 §11) : reprennent la marque et le modèle souhaités de `criteriaJson`. */
+  requestedBrand: string | null;
+  requestedModel: string | null;
   budgetMin: string | null;
   budgetMax: string | null;
 };
@@ -254,6 +257,8 @@ export async function submitCustomRequest(actor: Actor, input: unknown): Promise
     contactName: parsed.contactName,
     contactPhone: parsed.contactPhone,
     criteriaJson: parsed.criteria,
+    requestedBrand: parsed.criteria.brand ?? null,
+    requestedModel: parsed.criteria.model ?? null,
     budgetMin: parsed.budgetMin,
     budgetMax: parsed.budgetMax,
   });

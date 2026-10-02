@@ -58,14 +58,18 @@ export function CustomRequestForm({ isAuthenticated, connectedContact }: CustomR
       return;
     }
 
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
     setPending(true);
 
     try {
       const result = await submitCustomRequestAction(formData);
       setState(result);
       if ("data" in result) {
-        event.currentTarget.reset();
+        // `event.currentTarget` vaut null après un await : on capture l'élément AVANT l'appel.
+        // Sans cela, `reset()` lève une TypeError, le catch affiche un échec alors que la demande
+        // est bien enregistrée, et l'utilisateur resoumet (doublons).
+        form.reset();
       }
     } catch {
       setState({ error: { code: "INTERNAL", message: msg.submitGenericError } });
