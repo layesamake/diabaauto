@@ -1,0 +1,34 @@
+# dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# production
+build/
+dist/
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# coverage
+coverage/
+
+# local tooling
+.vercel/
+
+# Archive source zippée (contenu déjà décompressé dans ce dossier)
+Diaba_Auto_Documentation_Complete_21_Documents.zip
+.backup/

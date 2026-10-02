@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+:root {
+  --diaba-auto-blue: #0063df;
+  --diaba-auto-blue-hover: #0354a3;
+  --diaba-auto-bright-blue: #099ff8;
+  --diaba-auto-cyan: #2ac9fc;
+  --diaba-auto-light-cyan: #66e5fc;
+  --diaba-auto-night: #011d4f;
+  --diaba-auto-deep: #001787;
+  --diaba-auto-surface: #ffffff;
+  --diaba-auto-muted: #f4f7fb;
+  --diaba-auto-text: #071525;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--diaba-auto-surface);
+  color: var(--diaba-auto-text);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+a { color: inherit; text-decoration: none; }
+
+:focus-visible {
+  outline: 3px solid var(--diaba-auto-cyan);
+  outline-offset: 3px;
+}

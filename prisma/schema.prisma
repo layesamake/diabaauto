@@ -1,0 +1,682 @@
+// Diaba Auto — schéma Prisma aligné sur le corpus canonique.
+//
+// Source de vérité documentaire : `docs/12_Schema_Prisma_final_propose.docx` (schéma Prisma proposé),
+// `docs/03_Modele_de_donnees_SOURCE.docx` (modèle de données faisant foi) et
+// `docs/07_Roles_et_permissions.docx` (autorisations).
+// Conventions : snake_case en base via `@map` sur chaque champ, tables nommées au pluriel,
+// UUID (`@db.Uuid`) comme clé technique, `DECIMAL` pour les montants.
+//
+// Avancement des lots (docs/15_Roadmap_plan_developpement.docx) :
+//   L1 identité / RBAC / audit                    → livré
+//   L2 référentiels, véhicule, médias             → modélisé ici
+//   L3 pricing Standard/Revendeur, transport, FX  → tables présentes, logique et écrans au lot L3
+//   L4→L10 catalogue public, CRM, commandes, import, CMS → non modélisés
+// Voir `docs/audit-alignement-corpus-schema.md` pour le détail des écarts restants.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums — noms et valeurs du doc 12
+// ---------------------------------------------------------------------------
+
+enum UserType {
+  CUSTOMER
+  STAFF
+}
+
+enum ProfileStatus {
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum PricingProfile {
+  STANDARD
+  RESELLER
+}
+
+enum CustomerSegment {
+  INDIVIDUAL
+  FLEET
+  GARAGE
+  OTHER
+}
+
+enum ResellerStatus {
+  NOT_APPLICABLE
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum VehicleCondition {
+  NEW
+  USED
+}
+
+enum LogisticsLocation {
+  CHINA
+  IN_TRANSIT
+  SENEGAL
+}
+
+enum VehicleCommercialStatus {
+  DRAFT
+  AVAILABLE
+  RESERVED
+  SOLD
+  UNAVAILABLE
+  ARCHIVED
+}
+
+enum EligibilityStatus {
+  NOT_CHECKED
+  ELIGIBLE
+  NOT_ELIGIBLE
+  REVIEW_REQUIRED
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum PriceType {
+  REGULAR
+  PROMOTIONAL
+}
+
+enum DocumentVisibility {
+  PUBLIC
+  PRIVATE
+  SHARE_ON_REQUEST
+}
+
+/// Type de valeur d'une caractéristique administrable (doc 03 §8).
+enum FeatureDataType {
+  TEXT
+  NUMBER
+  BOOLEAN
+  DATE
+  JSON
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  NEGOTIATION
+  ORDER_CONFIRMED
+  LOST
+  COMPLETED
+}
+
+// `RequestStatus` n'existe pas dans le doc 12 (écart rédactionnel E28) : il reste porté par
+// `custom_requests`, table dont le remodelage est prévu au lot CRM (doc 03 §11).
+enum RequestStatus {
+  RECEIVED
+  QUALIFIED
+  SEARCHING
+  PROPOSED
+  CLOSED
+  ABANDONED
+}
+
+enum OrderStatus {
+  CONFIRMED
+  PROCESSING
+  IN_TRANSIT
+  ARRIVED
+  DELIVERED
+  CANCELLED
+}
+
+// ---------------------------------------------------------------------------
+// Identité et RBAC (doc 03 §3, doc 07, doc 12)
+// ---------------------------------------------------------------------------
+
+model Profile {
+  id              String           @id @default(uuid()) @db.Uuid
+  authUserId      String           @unique @map("auth_user_id") @db.Uuid
+  userType        UserType         @map("user_type")
+  status          ProfileStatus    @default(ACTIVE)
+  preferredLocale String           @default("fr") @map("preferred_locale")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  customer        CustomerProfile?
+  staff           StaffProfile?
+  audits          AuditLog[]       @relation("AuditActor")
+
+  @@map("profiles")
+}
+
+model CustomerProfile {
+  id             String            @id @default(uuid()) @db.Uuid
+  profileId      String            @unique @map("profile_id") @db.Uuid
+  pricingProfile PricingProfile    @default(STANDARD) @map("pricing_profile")
+  segment        CustomerSegment   @default(INDIVIDUAL) @map("customer_segment")
+  resellerStatus ResellerStatus    @default(NOT_APPLICABLE) @map("reseller_status")
+  firstName      String            @map("first_name")
+  lastName       String            @map("last_name")
+  phone          String?
+  whatsapp       String?
+  country        String            @default("SN")
+  city           String?
+  companyName    String?           @map("company_name")
+  businessType   String?           @map("business_type")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  profile        Profile           @relation(fields: [profileId], references: [id])
+  favorites      FavoriteVehicle[]
+  savedSearches  SavedSearch[]
+  leads          Lead[]
+  requests       CustomRequest[]
+  orders         Order[]
+
+  @@index([pricingProfile, resellerStatus])
+  @@map("customer_profiles")
+}
+
+model StaffProfile {
+  id            String      @id @default(uuid()) @db.Uuid
+  profileId     String      @unique @map("profile_id") @db.Uuid
+  firstName     String      @map("first_name")
+  lastName      String      @map("last_name")
+  phone         String?
+  jobTitle      String?     @map("job_title")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  profile       Profile     @relation(fields: [profileId], references: [id])
+  roles         StaffRole[]
+  assignedLeads Lead[]
+
+  @@map("staff_profiles")
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  code        String           @unique
+  name        String
+  description String?
+  staff       StaffRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  code        String           @unique
+  name        String
+  module      String
+  description String?
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model StaffRole {
+  staffId String       @map("staff_id") @db.Uuid
+  roleId  String       @map("role_id") @db.Uuid
+  staff   StaffProfile @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  role    Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([staffId, roleId])
+  @@map("staff_roles")
+}
+
+model RolePermission {
+  roleId       String     @map("role_id") @db.Uuid
+  permissionId String     @map("permission_id") @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ---------------------------------------------------------------------------
+// Référentiel automobile (doc 03 §5, doc 12)
+// ---------------------------------------------------------------------------
+
+model Brand {
+  id              String         @id @default(uuid()) @db.Uuid
+  name            String
+  slug            String         @unique
+  countryOfOrigin String?        @map("country_of_origin")
+  logoUrl         String?        @map("logo_url")
+  isActive        Boolean        @default(true) @map("is_active")
+  models          VehicleModel[]
+  vehicles        Vehicle[]
+
+  @@map("brands")
+}
+
+model VehicleModel {
+  id          String       @id @default(uuid()) @db.Uuid
+  brandId     String       @map("brand_id") @db.Uuid
+  brand       Brand        @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  name        String
+  slug        String
+  isActive    Boolean      @default(true) @map("is_active")
+  generations Generation[]
+  trims       Trim[]
+  vehicles    Vehicle[]
+
+  @@unique([brandId, slug])
+  @@map("vehicle_models")
+}
+
+model Generation {
+  id        String       @id @default(uuid()) @db.Uuid
+  modelId   String       @map("model_id") @db.Uuid
+  model     VehicleModel @relation(fields: [modelId], references: [id], onDelete: Restrict)
+  name      String
+  startYear Int?         @map("start_year")
+  endYear   Int?         @map("end_year")
+  trims     Trim[]
+  vehicles  Vehicle[]
+
+  @@unique([modelId, name])
+  @@map("vehicle_generations")
+}
+
+model Trim {
+  id           String       @id @default(uuid()) @db.Uuid
+  generationId String?      @map("generation_id") @db.Uuid
+  modelId      String       @map("model_id") @db.Uuid
+  generation   Generation?  @relation(fields: [generationId], references: [id], onDelete: Restrict)
+  model        VehicleModel @relation(fields: [modelId], references: [id], onDelete: Restrict)
+  name         String
+  code         String?
+  vehicles     Vehicle[]
+
+  @@unique([modelId, name])
+  @@map("vehicle_trims")
+}
+
+model BodyType {
+  id       String    @id @default(uuid()) @db.Uuid
+  code     String    @unique
+  name     String
+  vehicles Vehicle[]
+
+  @@map("body_types")
+}
+
+model FuelType {
+  id       String    @id @default(uuid()) @db.Uuid
+  code     String    @unique
+  name     String
+  vehicles Vehicle[]
+
+  @@map("fuel_types")
+}
+
+model TransmissionType {
+  id       String    @id @default(uuid()) @db.Uuid
+  code     String    @unique
+  name     String
+  vehicles Vehicle[]
+
+  @@map("transmission_types")
+}
+
+/// Couleurs : `scope` (EXT / INT / BOTH) est prescrit par le doc 03 §5 ; le doc 12 ne le modélise pas.
+model Color {
+  id               String    @id @default(uuid()) @db.Uuid
+  code             String    @unique
+  name             String
+  hexCode          String?   @map("hex_code")
+  scope            String?
+  exteriorVehicles Vehicle[] @relation("ExteriorColor")
+  interiorVehicles Vehicle[] @relation("InteriorColor")
+
+  @@map("colors")
+}
+
+/// Catégories d'équipements/options administrables (doc 03 §5 et §8).
+model OptionCategory {
+  id      String   @id @default(uuid()) @db.Uuid
+  code    String   @unique
+  name    String
+  options Option[]
+
+  @@map("option_categories")
+}
+
+model Option {
+  id         String          @id @default(uuid()) @db.Uuid
+  categoryId String          @map("category_id") @db.Uuid
+  category   OptionCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  code       String
+  name       String
+  vehicles   VehicleOption[]
+
+  @@unique([categoryId, code])
+  @@map("options")
+}
+
+/// Définition d'une caractéristique extensible (doc 03 §5 et §8) : permet d'ajouter des
+/// caractéristiques sans migration. `isPublic`/`isFilterable` correspondent aux champs
+/// `public`/`filterable` du document, renommés pour la lisibilité côté TypeScript.
+model FeatureDefinition {
+  id            String           @id @default(uuid()) @db.Uuid
+  code          String           @unique
+  name          String
+  dataType      FeatureDataType  @map("data_type")
+  unit          String?
+  category      String?
+  isPublic      Boolean          @default(false) @map("is_public")
+  isFilterable  Boolean          @default(false) @map("is_filterable")
+  applicability String?
+  features      VehicleFeature[]
+
+  @@map("feature_definitions")
+}
+
+// ---------------------------------------------------------------------------
+// Véhicule (doc 03 §6, doc 12)
+// ---------------------------------------------------------------------------
+
+model Vehicle {
+  id                      String                  @id @default(uuid()) @db.Uuid
+  reference               String                  @unique
+  slug                    String                  @unique
+  title                   String
+  description             String?
+  brandId                 String                  @map("brand_id") @db.Uuid
+  modelId                 String                  @map("model_id") @db.Uuid
+  generationId            String?                 @map("generation_id") @db.Uuid
+  trimId                  String?                 @map("trim_id") @db.Uuid
+  brand                   Brand                   @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  model                   VehicleModel            @relation(fields: [modelId], references: [id], onDelete: Restrict)
+  generation              Generation?             @relation(fields: [generationId], references: [id], onDelete: Restrict)
+  trim                    Trim?                   @relation(fields: [trimId], references: [id], onDelete: Restrict)
+  condition               VehicleCondition
+  year                    Int
+  firstRegistrationDate   DateTime?               @map("first_registration_date") @db.Date
+  mileage                 Int?
+  previousOwners          Int?                    @map("previous_owners")
+  accidentKnown           Boolean?                @map("accident_known")
+  serviceHistoryAvailable Boolean?                @map("service_history_available")
+  fuelTypeId              String                  @map("fuel_type_id") @db.Uuid
+  transmissionTypeId      String                  @map("transmission_type_id") @db.Uuid
+  bodyTypeId              String                  @map("body_type_id") @db.Uuid
+  exteriorColorId         String?                 @map("exterior_color_id") @db.Uuid
+  interiorColorId         String?                 @map("interior_color_id") @db.Uuid
+  fuelType                FuelType                @relation(fields: [fuelTypeId], references: [id], onDelete: Restrict)
+  transmissionType        TransmissionType        @relation(fields: [transmissionTypeId], references: [id], onDelete: Restrict)
+  bodyType                BodyType                @relation(fields: [bodyTypeId], references: [id], onDelete: Restrict)
+  exteriorColor           Color?                  @relation("ExteriorColor", fields: [exteriorColorId], references: [id], onDelete: Restrict)
+  interiorColor           Color?                  @relation("InteriorColor", fields: [interiorColorId], references: [id], onDelete: Restrict)
+  powerKw                 Decimal?                @map("power_kw") @db.Decimal(10, 2)
+  powerHp                 Decimal?                @map("power_hp") @db.Decimal(10, 2)
+  engineDisplacement      Int?                    @map("engine_displacement")
+  doors                   Int?
+  seats                   Int?
+  supplierReference       String?                 @map("supplier_reference")
+  supplierName            String?                 @map("supplier_name")
+  sourceType              String?                 @map("source_type")
+  sourceUrl               String?                 @map("source_url")
+  logisticsLocation       LogisticsLocation       @map("logistics_location")
+  commercialStatus        VehicleCommercialStatus @default(DRAFT) @map("commercial_status")
+  eligibilityStatus       EligibilityStatus       @default(NOT_CHECKED) @map("eligibility_status")
+  isPublished             Boolean                 @default(false) @map("is_published")
+  featured                Boolean                 @default(false)
+  publishedAt             DateTime?               @map("published_at")
+  archivedAt              DateTime?               @map("archived_at")
+  createdAt               DateTime                @default(now()) @map("created_at")
+  updatedAt               DateTime                @updatedAt @map("updated_at")
+  media                   VehicleMedia[]
+  documents               VehicleDocument[]
+  prices                  VehiclePrice[]
+  priceHistory            PriceHistory[]
+  features                VehicleFeature[]
+  options                 VehicleOption[]
+  favorites               FavoriteVehicle[]
+  leads                   Lead[]
+  orders                  Order[]
+
+  @@index([brandId, modelId, year])
+  @@index([commercialStatus, logisticsLocation, createdAt])
+  @@index([condition, year, mileage])
+  @@map("vehicles")
+}
+
+model VehicleMedia {
+  id            String             @id @default(uuid()) @db.Uuid
+  vehicleId     String             @map("vehicle_id") @db.Uuid
+  vehicle       Vehicle            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  mediaType     MediaType          @map("media_type")
+  storagePath   String?            @unique @map("storage_path")
+  externalUrl   String?            @map("external_url")
+  thumbnailPath String?            @map("thumbnail_path")
+  category      String?
+  displayOrder  Int                @default(0) @map("display_order")
+  isPrimary     Boolean            @default(false) @map("is_primary")
+  visibility    DocumentVisibility @default(PUBLIC)
+
+  @@index([vehicleId, displayOrder])
+  @@map("vehicle_media")
+}
+
+model VehicleDocument {
+  id           String             @id @default(uuid()) @db.Uuid
+  vehicleId    String             @map("vehicle_id") @db.Uuid
+  vehicle      Vehicle            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  documentType String             @map("document_type")
+  storagePath  String             @unique @map("storage_path")
+  title        String
+  visibility   DocumentVisibility @default(PRIVATE)
+
+  @@index([vehicleId])
+  @@map("vehicle_documents")
+}
+
+model VehicleFeature {
+  id                  String            @id @default(uuid()) @db.Uuid
+  vehicleId           String            @map("vehicle_id") @db.Uuid
+  featureDefinitionId String            @map("feature_definition_id") @db.Uuid
+  vehicle             Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  featureDefinition   FeatureDefinition @relation(fields: [featureDefinitionId], references: [id], onDelete: Restrict)
+  valueText           String?           @map("value_text")
+  valueNumber         Decimal?          @map("value_number") @db.Decimal(14, 4)
+  valueBool           Boolean?          @map("value_bool")
+  valueDate           DateTime?         @map("value_date") @db.Date
+  valueJson           Json?             @map("value_json")
+
+  @@unique([vehicleId, featureDefinitionId])
+  @@map("vehicle_features")
+}
+
+model VehicleOption {
+  vehicleId String  @map("vehicle_id") @db.Uuid
+  optionId  String  @map("option_id") @db.Uuid
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  option    Option  @relation(fields: [optionId], references: [id], onDelete: Restrict)
+
+  @@id([vehicleId, optionId])
+  @@map("vehicle_options")
+}
+
+// ---------------------------------------------------------------------------
+// Pricing (doc 03 §9, doc 12) — tables livrées avec L2 ; logique Standard/Revendeur,
+// transport et FX, écrans et tests T-PRICE appartiennent au lot L3.
+// ---------------------------------------------------------------------------
+
+model VehiclePrice {
+  id              String         @id @default(uuid()) @db.Uuid
+  vehicleId       String         @map("vehicle_id") @db.Uuid
+  vehicle         Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  pricingProfile  PricingProfile @map("pricing_profile")
+  priceType       PriceType      @default(REGULAR) @map("price_type")
+  baseAmount      Decimal        @map("base_amount") @db.Decimal(18, 2)
+  transportAmount Decimal?       @map("transport_amount") @db.Decimal(18, 2)
+  currency        String         @db.VarChar(3)
+  validFrom       DateTime?      @map("valid_from")
+  validTo         DateTime?      @map("valid_to")
+  isActive        Boolean        @default(true) @map("is_active")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  @@index([vehicleId, pricingProfile, isActive])
+  @@map("vehicle_prices")
+}
+
+model ExchangeRate {
+  id            String   @id @default(uuid()) @db.Uuid
+  baseCurrency  String   @map("base_currency") @db.VarChar(3)
+  quoteCurrency String   @map("quote_currency") @db.VarChar(3)
+  rate          Decimal  @db.Decimal(20, 8)
+  source        String
+  effectiveAt   DateTime @map("effective_at")
+  isCurrent     Boolean  @default(true) @map("is_current")
+
+  @@index([baseCurrency, quoteCurrency, isCurrent])
+  @@map("exchange_rates")
+}
+
+model PriceHistory {
+  id             String         @id @default(uuid()) @db.Uuid
+  vehicleId      String         @map("vehicle_id") @db.Uuid
+  vehicle        Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  pricingProfile PricingProfile @map("pricing_profile")
+  component      String
+  oldAmount      Decimal?       @map("old_amount") @db.Decimal(18, 2)
+  newAmount      Decimal        @map("new_amount") @db.Decimal(18, 2)
+  currency       String         @db.VarChar(3)
+  changedBy      String         @map("changed_by") @db.Uuid
+  changedAt      DateTime       @default(now()) @map("changed_at")
+
+  @@index([vehicleId, changedAt])
+  @@map("price_history")
+}
+
+// ---------------------------------------------------------------------------
+// Activité client (doc 03 §10, §11)
+// ---------------------------------------------------------------------------
+
+model FavoriteVehicle {
+  customerId String          @map("customer_id") @db.Uuid
+  vehicleId  String          @map("vehicle_id") @db.Uuid
+  customer   CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vehicle    Vehicle         @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  createdAt  DateTime        @default(now()) @map("created_at")
+
+  @@id([customerId, vehicleId])
+  @@map("favorite_vehicles")
+}
+
+model SavedSearch {
+  id                   String          @id @default(uuid()) @db.Uuid
+  customerId           String          @map("customer_id") @db.Uuid
+  customer             CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  name                 String
+  criteriaJson         Json            @map("criteria_json")
+  notificationsEnabled Boolean         @default(false) @map("notifications_enabled")
+  createdAt            DateTime        @default(now()) @map("created_at")
+
+  @@index([customerId])
+  @@map("saved_searches")
+}
+
+model Lead {
+  id                    String           @id @default(uuid()) @db.Uuid
+  customerId            String?          @map("customer_id") @db.Uuid
+  vehicleId             String?          @map("vehicle_id") @db.Uuid
+  assignedSalespersonId String?          @map("assigned_salesperson_id") @db.Uuid
+  customer              CustomerProfile? @relation(fields: [customerId], references: [id])
+  vehicle               Vehicle?         @relation(fields: [vehicleId], references: [id])
+  assignee              StaffProfile?    @relation(fields: [assignedSalespersonId], references: [id])
+  firstName             String           @map("first_name")
+  phone                 String
+  status                LeadStatus       @default(NEW)
+  createdAt             DateTime         @default(now()) @map("created_at")
+  updatedAt             DateTime         @updatedAt @map("updated_at")
+
+  @@index([status, assignedSalespersonId])
+  @@map("leads")
+}
+
+// Modèle provisoire : le corpus décrit `custom_vehicle_requests` (doc 03 §11) rattaché au
+// prospect, avec marque/modèle demandés — remodelage prévu au lot CRM.
+// `contactName`/`contactPhone` ajoutés au lot 4 (décision T33) : dev.md §4 exige qu'une demande
+// personnalisée « conserve les coordonnées nécessaires même sans compte » (parcours visiteur), ce
+// que le modèle initial ne permettait pas (aucune colonne de contact hors `customerId`).
+model CustomRequest {
+  id           String           @id @default(uuid()) @db.Uuid
+  customerId   String?          @map("customer_id") @db.Uuid
+  customer     CustomerProfile? @relation(fields: [customerId], references: [id])
+  contactName  String?          @map("contact_name")
+  contactPhone String?          @map("contact_phone")
+  criteriaJson Json             @map("criteria_json")
+  budgetMin    Decimal?         @map("budget_min") @db.Decimal(14, 2)
+  budgetMax    Decimal?         @map("budget_max") @db.Decimal(14, 2)
+  status       RequestStatus    @default(RECEIVED)
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  @@index([customerId, status])
+  @@map("custom_requests")
+}
+
+model Order {
+  id          String          @id @default(uuid()) @db.Uuid
+  reference   String          @unique
+  customerId  String          @map("customer_id") @db.Uuid
+  vehicleId   String?         @map("vehicle_id") @db.Uuid
+  customer    CustomerProfile @relation(fields: [customerId], references: [id])
+  vehicle     Vehicle?        @relation(fields: [vehicleId], references: [id])
+  agreedPrice Decimal         @map("agreed_price") @db.Decimal(14, 2)
+  currency    String          @default("XOF")
+  status      OrderStatus     @default(CONFIRMED)
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  events      OrderEvent[]
+
+  @@index([customerId, status])
+  @@map("orders")
+}
+
+model OrderEvent {
+  id         String      @id @default(uuid()) @db.Uuid
+  orderId    String      @map("order_id") @db.Uuid
+  order      Order       @relation(fields: [orderId], references: [id])
+  status     OrderStatus
+  note       String?
+  occurredAt DateTime    @default(now()) @map("occurred_at")
+
+  @@index([orderId, occurredAt])
+  @@map("order_events")
+}
+
+// ---------------------------------------------------------------------------
+// Audit (doc 12, doc 17 §8) — append-only, immuable pour les utilisateurs.
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  actorProfileId String?  @map("actor_profile_id") @db.Uuid
+  actor          Profile? @relation("AuditActor", fields: [actorProfileId], references: [id], onDelete: SetNull)
+  action         String
+  entityType     String   @map("entity_type")
+  entityId       String?  @map("entity_id")
+  oldValues      Json?    @map("old_values")
+  newValues      Json?    @map("new_values")
+  ipAddress      String?  @map("ip_address")
+  userAgent      String?  @map("user_agent")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId, createdAt])
+  @@map("audit_logs")
+}
