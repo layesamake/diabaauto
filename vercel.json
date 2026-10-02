@@ -1,5 +1,6 @@
 {
   "framework": "nextjs",
   "buildCommand": "npx prisma generate && npm run build",
-  "installCommand": "npm install --include=dev"
+  "installCommand": "npm install --include=dev",
+  "regions": ["dub1"]
 }
