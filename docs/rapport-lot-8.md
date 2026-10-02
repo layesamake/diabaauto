@@ -97,6 +97,7 @@ Aucune donnée métier exportée (schéma seul).
 | 9 | **Aucun environnement de préproduction** : les migrations ne sont validées qu'hors ligne avant la production | D15 en attente |
 | 10 | Résidus du lot 7 : 2 `customer_profiles` et 1 compte de test sur la production | Invisibles, sans effet fonctionnel ; **nettoyage soumis à autorisation** |
 | 11 | **D03** (workflow d'approbation d'une habilitation) et **D21** (liste canonique des permissions) | Arbitrages produit en attente |
+| 12 | **`APP_ENV` valait `development` dans l'environnement Production de Vercel** : la CSP servie contenait `'unsafe-eval'` et la branche de production (HSTS, `upgrade-insecure-requests`) n'était pas prise | **Trouvé et corrigé dans ce lot** : variable fixée à `production`, déploiement rejoué, en-têtes revérifiés en production |
 
 ## 5. Reste à faire
 

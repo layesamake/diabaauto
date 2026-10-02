@@ -87,6 +87,29 @@ Le contrôle de la **clé publique** est celui que le document 14 §6 exige (« 
 tables avaient déjà été éprouvées avec des acteurs réels (anon / authenticated / staff) sur base
 réelle au lot 6 (`e2e-lot6-rls.sh`).
 
+### 6.1 En-têtes de sécurité réellement servis en production
+
+Vérifié par `curl -D -` sur https://diabaauto.vercel.app après déploiement :
+
+| En-tête | Valeur observée |
+|---|---|
+| `content-security-policy` | `default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://<projet>.supabase.co; media-src 'self' blob: https://<projet>.supabase.co; font-src 'self' data:; connect-src 'self' https://<projet>.supabase.co wss://<projet>.supabase.co; worker-src 'self' blob:; manifest-src 'self'; frame-src 'none'; upgrade-insecure-requests` |
+| `strict-transport-security` | `max-age=63072000; includeSubDomains` (la valeur de l'application, sans `preload`) |
+| `x-content-type-options` | `nosniff` |
+| `referrer-policy` | `strict-origin-when-cross-origin` |
+| `x-frame-options` | `DENY` |
+| `permissions-policy` | `camera=(), microphone=(), geolocation=(), payment=(), usb=(), …` |
+| `x-powered-by` | **absent** (`poweredByHeader` désactivé) |
+
+Navigation cliente (React) rejouée dans un navigateur réel avec la CSP active : catalogue et fiches
+rendus, **0 violation CSP**, **0 erreur JavaScript**.
+
+**Défaut trouvé et corrigé pendant cette vérification** : la variable `APP_ENV` de l'environnement
+**Production** de Vercel valait `development`. Conséquence mesurée : la CSP servie contenait
+`'unsafe-eval'` et la branche « production » (HSTS, `upgrade-insecure-requests`) n'était pas prise.
+`APP_ENV` a été fixé à `production` et le déploiement rejoué ; les valeurs du tableau ci-dessus sont
+celles d'**après** correction.
+
 ## 7. Sauvegarde et restauration (écart E30, doc 11 §9, doc 20 §11)
 
 Procédure écrite **et exercée** le 2 octobre 2026 :
