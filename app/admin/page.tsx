@@ -89,7 +89,7 @@ function AdminScreens({ permissions }: { permissions: readonly PermissionCode[] 
 
             <Link
               href={screen.href}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#0063DF] px-4 py-3 text-base font-semibold text-white transition hover:bg-[#0354A3]"
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#011D4F] px-4 py-3 text-base font-semibold text-white transition hover:bg-[#0063DF]"
             >
               Ouvrir
               <svg
