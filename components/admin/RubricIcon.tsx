@@ -75,6 +75,15 @@ const PATHS: Record<RubricIconName, ReactNode> = {
       <path d="M12 13.4v7.2" />
     </>
   ),
+  // Le personnel : un badge nominatif.
+  personnel: (
+    <>
+      <rect x="3.5" y="4" width="17" height="16" rx="2.5" />
+      <circle cx="9" cy="10.5" r="2.2" />
+      <path d="M5.6 16.6a3.6 3.6 0 0 1 6.8 0" />
+      <path d="M15 9.5h3.5M15 13.5h3.5" />
+    </>
+  ),
   // Mon compte : un cadenas.
   compte: (
     <>

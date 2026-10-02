@@ -77,6 +77,12 @@ export function toCustomerRow(row: StaffCustomerDbRow): CustomerRow {
 /** Construit le filtre `where` borné de la liste clients. */
 export function toStaffCustomerWhere(filters: CustomerFilters = {}): Prisma.CustomerProfileWhereInput {
   return {
+    // Un compte personnel n'est pas un client. Le trigger `on_auth_user_created` crée un
+    // `customer_profiles` pour CHAQUE nouvel utilisateur Auth — y compris un futur membre du
+    // personnel (`staff:grant`, lot 7) — et ces lignes résiduelles feraient apparaître un
+    // administrateur dans la liste Clients. Le filtre rend la liste correcte indépendamment de
+    // tout résidu (et non plus seulement par propreté des données).
+    profile: { userType: "CUSTOMER" },
     ...(filters.segment ? { segment: filters.segment } : {}),
     ...(filters.resellerStatus ? { resellerStatus: filters.resellerStatus } : {}),
     ...(filters.search

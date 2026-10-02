@@ -110,7 +110,7 @@ function AdminScreens({ permissions }: { permissions: readonly PermissionCode[] 
         ))}
       </ul>
       <p className="text-sm text-slate-600">
-        Les écrans Personnel et Audit arrivent aux lots suivants.
+        L'écran Audit arrive au lot suivant.
       </p>
     </section>
   );

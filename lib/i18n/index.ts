@@ -27,3 +27,6 @@ export { staffOrdersFr, type StaffOrdersMessages } from "./staff-orders.fr";
 
 // Back-office — « Mon compte » (sécurité de l'accès du personnel) : espace de noms distinct.
 export { accountFr, type AccountMessages } from "./account.fr";
+
+// Lot 7 — « Personnel » (gestion des comptes internes) : espace de noms distinct.
+export { staffAccountsFr, type StaffAccountsMessages } from "./staff-accounts.fr";

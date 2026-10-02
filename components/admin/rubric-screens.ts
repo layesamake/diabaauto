@@ -73,6 +73,14 @@ export const RUBRIC_SCREENS: readonly RubricScreen[] = [
     icon: "commandes",
     permission: "order.view",
   },
+  {
+    href: "/admin/personnel",
+    title: "Personnel",
+    description:
+      "Comptes internes : créer un administrateur ou un commercial, modifier ses rôles, désactiver ou réactiver son accès.",
+    icon: "personnel",
+    permission: "user.manage",
+  },
 ];
 
 /** Rubriques visibles pour l'acteur, dans l'ordre du catalogue. */

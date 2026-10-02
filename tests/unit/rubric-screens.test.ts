@@ -33,7 +33,7 @@ describe("rubric-screens", () => {
     }
   });
 
-  it("propose les sept rubriques livrées à un administrateur complet", () => {
+  it("propose les huit rubriques livrées à un administrateur complet", () => {
     const all: PermissionCode[] = [
       "vehicle.view",
       "content.manage",
@@ -41,6 +41,7 @@ describe("rubric-screens", () => {
       "customer.view",
       "reseller.view",
       "order.view",
+      "user.manage",
     ];
 
     const screens = allowedRubricScreens(all);
@@ -54,6 +55,7 @@ describe("rubric-screens", () => {
       "Clients",
       "Revendeurs",
       "Commandes",
+      "Personnel",
     ]);
   });
 
