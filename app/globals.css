@@ -13,18 +13,26 @@
   --diaba-auto-text: #071525;
 }
 
-* { box-sizing: border-box; }
+/*
+ * Les styles de base sont dans `@layer base` : hors couche, ils l'emportent sur les utilitaires
+ * Tailwind (qui vivent dans `@layer utilities`) et une regle comme `a { color: inherit }` ecrasait
+ * silencieusement `text-white` — le texte du bouton « Ouvrir » du back-office restait bleu fonce sur
+ * fond bleu. Dans `@layer base`, la regle ne s'applique que lorsqu'aucun utilitaire ne tranche.
+ */
+@layer base {
+  * { box-sizing: border-box; }
 
-html { scroll-behavior: smooth; }
+  html { scroll-behavior: smooth; }
 
-body {
-  margin: 0;
-  background: var(--diaba-auto-surface);
-  color: var(--diaba-auto-text);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    margin: 0;
+    background: var(--diaba-auto-surface);
+    color: var(--diaba-auto-text);
+    font-family: Arial, Helvetica, sans-serif;
+  }
+
+  a { color: inherit; text-decoration: none; }
 }
-
-a { color: inherit; text-decoration: none; }
 
 :focus-visible {
   outline: 3px solid var(--diaba-auto-cyan);
