@@ -158,21 +158,59 @@ enum OrderStatus {
   CANCELLED
 }
 
+/// Statut d'une réservation de véhicule (contrat lot 6 §2.1, doc 09 §5).
+/// `CONVERTED` du doc 12 est VOLONTAIREMENT absent : le contrat gelé de lot 6
+/// fixe PENDING / CONFIRMED / CANCELLED / EXPIRED (divergence contrée par le contrat).
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+  CONVERTED
+}
+
+/// Statut d'un acompte externe (contrat lot 6 §2.1, doc 09 §6).
+/// Diaba Auto n'encaisse aucun paiement (BR-101/BR-102) : l'état reflète
+/// seulement le contrôle d'une opération hors plateforme.
+enum DepositStatus {
+  NOT_REQUIRED
+  REQUESTED
+  REPORTED
+  VERIFIED
+  REJECTED
+}
+
+/// Nature d'un événement logistique rattaché au véhicule (contrat lot 6 §2.1,
+/// liste verbatim du doc 03 §15).
+enum LogisticsEventType {
+  SUPPLIER
+  INSPECTION
+  PURCHASE_CONFIRMED
+  PORT_CHINA
+  SHIPPED
+  AT_SEA
+  ARRIVED_SENEGAL
+  CUSTOMS
+  AVAILABLE_SENEGAL
+  DELIVERED
+}
+
 // ---------------------------------------------------------------------------
 // Identité et RBAC (doc 03 §3, doc 07, doc 12)
 // ---------------------------------------------------------------------------
 
 model Profile {
-  id              String           @id @default(uuid()) @db.Uuid
-  authUserId      String           @unique @map("auth_user_id") @db.Uuid
-  userType        UserType         @map("user_type")
-  status          ProfileStatus    @default(ACTIVE)
-  preferredLocale String           @default("fr") @map("preferred_locale")
-  createdAt       DateTime         @default(now()) @map("created_at")
-  updatedAt       DateTime         @updatedAt @map("updated_at")
+  id              String                  @id @default(uuid()) @db.Uuid
+  authUserId      String                  @unique @map("auth_user_id") @db.Uuid
+  userType        UserType                @map("user_type")
+  status          ProfileStatus           @default(ACTIVE)
+  preferredLocale String                  @default("fr") @map("preferred_locale")
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
   customer        CustomerProfile?
   staff           StaffProfile?
-  audits          AuditLog[]       @relation("AuditActor")
+  audits          AuditLog[]              @relation("AuditActor")
+  logisticsEvents VehicleLogisticsEvent[] @relation("LogisticsEventCreator")
 
   @@map("profiles")
 }
@@ -200,26 +238,29 @@ model CustomerProfile {
   requests             CustomVehicleRequest[]
   resellerApplications ResellerApplication[]
   orders               Order[]
+  reservations         Reservation[]
 
   @@index([pricingProfile, resellerStatus])
   @@map("customer_profiles")
 }
 
 model StaffProfile {
-  id                   String                @id @default(uuid()) @db.Uuid
-  profileId            String                @unique @map("profile_id") @db.Uuid
-  firstName            String                @map("first_name")
-  lastName             String                @map("last_name")
-  phone                String?
-  jobTitle             String?               @map("job_title")
-  createdAt            DateTime              @default(now()) @map("created_at")
-  updatedAt            DateTime              @updatedAt @map("updated_at")
-  profile              Profile               @relation(fields: [profileId], references: [id])
-  roles                StaffRole[]
-  assignedLeads        Lead[]
-  reviewedApplications ResellerApplication[] @relation("ResellerApplicationReviewer")
-  leadNotes            LeadNote[]
-  leadActivities       LeadActivity[]
+  id                    String                @id @default(uuid()) @db.Uuid
+  profileId             String                @unique @map("profile_id") @db.Uuid
+  firstName             String                @map("first_name")
+  lastName              String                @map("last_name")
+  phone                 String?
+  jobTitle              String?               @map("job_title")
+  createdAt             DateTime              @default(now()) @map("created_at")
+  updatedAt             DateTime              @updatedAt @map("updated_at")
+  profile               Profile               @relation(fields: [profileId], references: [id])
+  roles                 StaffRole[]
+  assignedLeads         Lead[]
+  reviewedApplications  ResellerApplication[] @relation("ResellerApplicationReviewer")
+  leadNotes             LeadNote[]
+  leadActivities        LeadActivity[]
+  orders                Order[]               @relation("OrderSalesperson")
+  confirmedReservations Reservation[]         @relation("ReservationConfirmedBy")
 
   @@map("staff_profiles")
 }
@@ -468,6 +509,8 @@ model Vehicle {
   favorites               FavoriteVehicle[]
   leads                   Lead[]
   orders                  Order[]
+  reservations            Reservation[]
+  logisticsEvents         VehicleLogisticsEvent[]
 
   @@index([brandId, modelId, year])
   @@index([commercialStatus, logisticsLocation, createdAt])
@@ -635,6 +678,8 @@ model Lead {
   notes                 LeadNote[]
   activities            LeadActivity[]
   customVehicleRequests CustomVehicleRequest[]
+  reservations          Reservation[]
+  orders                Order[]
 
   @@index([status, assignedSalespersonId])
   @@map("leads")
@@ -720,20 +765,31 @@ model LeadActivity {
 }
 
 model Order {
-  id          String          @id @default(uuid()) @db.Uuid
-  reference   String          @unique
-  customerId  String          @map("customer_id") @db.Uuid
-  vehicleId   String?         @map("vehicle_id") @db.Uuid
-  customer    CustomerProfile @relation(fields: [customerId], references: [id])
-  vehicle     Vehicle?        @relation(fields: [vehicleId], references: [id])
-  agreedPrice Decimal         @map("agreed_price") @db.Decimal(14, 2)
-  currency    String          @default("XOF")
-  status      OrderStatus     @default(CONFIRMED)
-  createdAt   DateTime        @default(now()) @map("created_at")
-  updatedAt   DateTime        @updatedAt @map("updated_at")
-  events      OrderEvent[]
+  id                   String          @id @default(uuid()) @db.Uuid
+  reference            String          @unique
+  customerId           String          @map("customer_id") @db.Uuid
+  vehicleId            String          @map("vehicle_id") @db.Uuid
+  leadId               String?         @map("lead_id") @db.Uuid
+  reservationId        String?         @map("reservation_id") @db.Uuid
+  salespersonId        String          @map("salesperson_id") @db.Uuid
+  customer             CustomerProfile @relation(fields: [customerId], references: [id])
+  vehicle              Vehicle         @relation(fields: [vehicleId], references: [id])
+  lead                 Lead?           @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  reservation          Reservation?    @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  salesperson          StaffProfile    @relation("OrderSalesperson", fields: [salespersonId], references: [id], onDelete: Restrict)
+  agreedVehiclePrice   Decimal         @map("agreed_vehicle_price") @db.Decimal(14, 2)
+  agreedTransportPrice Decimal?        @map("agreed_transport_price") @db.Decimal(14, 2)
+  currency             String          @default("XOF")
+  status               OrderStatus     @default(CONFIRMED)
+  confirmedAt          DateTime        @default(now()) @map("confirmed_at")
+  estimatedArrivalAt   DateTime?       @map("estimated_arrival_at")
+  deliveredAt          DateTime?       @map("delivered_at")
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
+  events               OrderEvent[]
 
   @@index([customerId, status])
+  @@index([vehicleId, status])
   @@map("orders")
 }
 
@@ -747,6 +803,54 @@ model OrderEvent {
 
   @@index([orderId, occurredAt])
   @@map("order_events")
+}
+
+/// Réservation de véhicule et acompte externe (contrat lot 6 §2.2, doc 03 §12).
+/// Un véhicule ne peut porter qu'une réservation ACTIVE à la fois (status
+/// PENDING/CONFIRMED) : garanti par un index unique PARTIEL posé en migration
+/// (non exprimable en Prisma). Aucun encaissement : on enregistre le montant,
+/// la devise, le statut et la référence externe de l'acompte (BR-102).
+model Reservation {
+  id                       String            @id @default(uuid()) @db.Uuid
+  reference                String            @unique
+  vehicleId                String            @map("vehicle_id") @db.Uuid
+  customerId               String            @map("customer_id") @db.Uuid
+  leadId                   String?           @map("lead_id") @db.Uuid
+  status                   ReservationStatus @default(PENDING)
+  expiresAt                DateTime?         @map("expires_at")
+  agreedPrice              Decimal?          @map("agreed_price") @db.Decimal(14, 2)
+  depositRequired          Boolean           @default(false) @map("deposit_required")
+  depositAmount            Decimal?          @map("deposit_amount") @db.Decimal(14, 2)
+  depositCurrency          String?           @map("deposit_currency") @db.VarChar(3)
+  depositStatus            DepositStatus     @default(NOT_REQUIRED) @map("deposit_status")
+  externalDepositReference String?           @map("external_deposit_reference")
+  confirmedById            String?           @map("confirmed_by") @db.Uuid
+  createdAt                DateTime          @default(now()) @map("created_at")
+  updatedAt                DateTime          @updatedAt @map("updated_at")
+  vehicle                  Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  customer                 CustomerProfile   @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  lead                     Lead?             @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  confirmedBy              StaffProfile?     @relation("ReservationConfirmedBy", fields: [confirmedById], references: [id], onDelete: SetNull)
+  orders                   Order[]
+
+  @@map("reservations")
+}
+
+/// Historique logistique du VÉHICULE (contrat lot 6 §2.4, doc 03 §15) — distinct
+/// de `order_events`, qui suit les transitions de la COMMANDE (contrat §2.5).
+model VehicleLogisticsEvent {
+  id          String             @id @default(uuid()) @db.Uuid
+  vehicleId   String             @map("vehicle_id") @db.Uuid
+  eventType   LogisticsEventType @map("event_type")
+  location    String?
+  description String?
+  eventAt     DateTime           @default(now()) @map("event_at")
+  createdBy   String?            @map("created_by") @db.Uuid
+  vehicle     Vehicle            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  creator     Profile?           @relation("LogisticsEventCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([vehicleId, eventAt])
+  @@map("vehicle_logistics_events")
 }
 
 // ---------------------------------------------------------------------------

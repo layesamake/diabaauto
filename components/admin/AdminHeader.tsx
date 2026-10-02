@@ -13,7 +13,8 @@ export type AdminScreenKey =
   | "prospects"
   | "demandes"
   | "clients"
-  | "revendeurs";
+  | "revendeurs"
+  | "commandes";
 
 /**
  * En-tête du back-office : titre, navigation et déconnexion.
@@ -66,6 +67,12 @@ export function AdminHeader({
       label: "Revendeurs",
       key: "revendeurs" as const,
       allowed: permissions.includes("reseller.view"),
+    },
+    {
+      href: "/admin/commandes",
+      label: "Commandes",
+      key: "commandes" as const,
+      allowed: permissions.includes("order.view"),
     },
   ].filter((link) => link.allowed);
 

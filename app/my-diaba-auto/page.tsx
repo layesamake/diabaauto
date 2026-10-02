@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LogoutButton } from "@/components/profile/LogoutButton";
 import { ProfileForm } from "@/components/profile/ProfileForm";
@@ -82,6 +83,25 @@ async function CustomerDashboard() {
       <FavoritesMergeOnLogin />
 
       <ProfileSummary profile={profile} />
+
+      {/* Entrée « Mes commandes » (lot 6) : la lecture de la liste est portée par la page
+          /my-diaba-auto/commandes, gardée par `requireCustomer` au niveau du service. */}
+      <section aria-labelledby="profil-commandes" className="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 id="profil-commandes" className="text-lg font-semibold text-[#011D4F]">
+          Mes commandes
+        </h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Suivez vos commandes en cours : véhicule, prix convenu, statut et livraison.
+        </p>
+        <div className="mt-4">
+          <Link
+            href="/my-diaba-auto/commandes"
+            className="inline-flex items-center rounded-lg bg-[#011D4F] px-4 py-2 text-sm font-semibold text-white hover:bg-[#002a70]"
+          >
+            Consulter mes commandes
+          </Link>
+        </div>
+      </section>
       <section aria-labelledby="profil-statut" className="rounded-xl border border-slate-200 bg-white p-5">
         <h2 id="profil-statut" className="text-lg font-semibold text-[#011D4F]">
           Statut Revendeur

@@ -101,6 +101,12 @@ function AdminScreens({ permissions }: { permissions: readonly PermissionCode[] 
       description: "Demandes d'agrément revendeur : prise en charge, approbation et refus motivé.",
       allowed: permissions.includes("reseller.view"),
     },
+    {
+      href: "/admin/commandes",
+      title: "Commandes",
+      description: "Réservations et commandes : transitions, prix convenus figés, historique et suivi logistique du véhicule.",
+      allowed: permissions.includes("order.view"),
+    },
   ].filter((screen) => screen.allowed);
 
   return (

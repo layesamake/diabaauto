@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Diaba Auto — contrôle hors ligne des migrations M01..M07 (décision T01/T02).
+ * Diaba Auto — contrôle hors ligne des migrations M01..M08 (décision T01/T02).
  *
  * Principe : le schéma `prisma/schema.prisma` est la seule source de vérité de
  * la structure. Le SQL de structure attendu est GÉNÉRÉ par Prisma :
@@ -8,7 +8,7 @@
  *   npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script
  *
  * Le script reconstruit la structure EFFECTIVE produite par les migrations
- * M01..M04 + M07 (partie structurelle) en repliant les instructions dans
+ * M01..M04 + M07 + M08 (partie structurelle) en repliant les instructions dans
  * l'ordre : CREATE TABLE, ALTER TABLE … ADD COLUMN, ADD CONSTRAINT, mais aussi
  * les RENOMMAGES (ALTER TABLE … RENAME TO, RENAME COLUMN, RENAME CONSTRAINT,
  * ALTER INDEX … RENAME TO). La structure reconstruite est comparée au schéma
@@ -17,9 +17,10 @@
  *
  * La comparaison est normalisée : espaces, majuscules et commentaires `--` ignorés.
  *
- * Renommages explicitement pris en charge (contrat lot 5 §2) :
- *   * table   custom_requests  -> custom_vehicle_requests
- *   * colonne leads.first_name -> leads.name
+ * Renommages explicitement pris en charge :
+ *   * table   custom_requests     -> custom_vehicle_requests   (contrat lot 5 §2)
+ *   * colonne leads.first_name    -> leads.name                 (contrat lot 5 §2)
+ *   * colonne orders.agreed_price -> orders.agreed_vehicle_price (contrat lot 6 §2.3)
  *
  * Aucune base de données n'est contactée. Aucune dépendance externe.
  *
@@ -37,9 +38,12 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(SCRIPT_DIR, '..');
 const MIGRATIONS_DIR = join(ROOT, 'prisma', 'migrations');
 
-const MIGRATION_DIR_RE = /^(\d{14})_(m\d{2}_[a-z0-9_]+)$/;
-const EXPECTED_NAMES = ['m01_identite', 'm02_referentiels', 'm03_activite_client', 'm04_journaux_audit_index', 'm05_rls_storage', 'm06_integrite_profils_auth', 'm07_crm_revendeur'];
-const STRUCTURAL = ['m01_identite', 'm02_referentiels', 'm03_activite_client', 'm04_journaux_audit_index', 'm07_crm_revendeur'];
+// Motif élargi : deux ou trois chiffres de lot (m08, m09… m99, m100…), pour ne
+// pas bloquer les lots suivants ; la vérification des noms attendus reste, elle,
+// strictement énumérée ci-dessous.
+const MIGRATION_DIR_RE = /^(\d{14})_(m\d{2,3}_[a-z0-9_]+)$/;
+const EXPECTED_NAMES = ['m01_identite', 'm02_referentiels', 'm03_activite_client', 'm04_journaux_audit_index', 'm05_rls_storage', 'm06_integrite_profils_auth', 'm07_crm_revendeur', 'm08_commandes'];
+const STRUCTURAL = ['m01_identite', 'm02_referentiels', 'm03_activite_client', 'm04_journaux_audit_index', 'm07_crm_revendeur', 'm08_commandes'];
 
 const failures = [];
 const notes = [];
@@ -305,6 +309,15 @@ function applyStatement(model, s) {
     model.tables.get(table).set(col, `"${col}" ${m[4]}`);
     return;
   }
+  if ((m = s.match(new RegExp(`^alter table ${TABLE_REF} alter column "([^"]+)" set not null$`)))) {
+    const table = m[1] || m[2];
+    const col = m[3];
+    const cols = model.tables.get(table);
+    if (cols && cols.has(col) && !/ not null/i.test(cols.get(col))) {
+      cols.set(col, `${cols.get(col)} not null`);
+    }
+    return;
+  }
   // Contraintes : un ALTER peut en porter plusieurs (CHECK notamment).
   const table = tableRef(s);
   if (table) {
@@ -324,7 +337,7 @@ function modelFromSql(sql) {
 // Exécution
 // ---------------------------------------------------------------------------
 function main() {
-  console.log('Diaba Auto — vérification des migrations M01..M07 (hors ligne)');
+  console.log('Diaba Auto — vérification des migrations M01..M08 (hors ligne)');
   console.log('  schéma source : prisma/schema.prisma');
   console.log('');
 
@@ -371,19 +384,20 @@ function main() {
   for (const c of missingColumns) fail(`COLONNE du schéma absente des migrations : ${c}`);
   for (const c of divergentColumns) fail(`COLONNE du schéma divergente dans les migrations : ${c}`);
 
-  // --- 3c. M05/M07 : RLS obligatoire sur toutes les tables exposées --------
+  // --- 3c. M05/M07/M08 : RLS obligatoire sur toutes les tables exposées -----
   const m05 = entries.find((e) => e.label === 'm05_rls_storage');
   const m07 = entries.find((e) => e.label === 'm07_crm_revendeur');
-  const rlsText = [m05, m07].filter(Boolean).map((e) => splitStatements(e.sql).map(normalize).join('\n')).join('\n');
+  const m08 = entries.find((e) => e.label === 'm08_commandes');
+  const rlsText = [m05, m07, m08].filter(Boolean).map((e) => splitStatements(e.sql).map(normalize).join('\n')).join('\n');
   if (!m05) {
     fail('M05 absente : RLS et policies non vérifiables');
   } else {
     const m05Text = normalize(m05.sql);
-    // La RLS peut être activée en M05 (tables historiques) ou en M07 (tables/renommages du lot 5).
+    // La RLS peut être activée en M05 (tables historiques), M07 (lot 5) ou M08 (lot 6).
     const tablesWithoutRls = expected.tables
       ? [...expected.tables.keys()].filter((t) => !rlsText.includes(`alter table public.${t} enable row level security`))
       : [];
-    for (const t of tablesWithoutRls) fail(`RLS non activée (M05/M07) pour la table « ${t} »`);
+    for (const t of tablesWithoutRls) fail(`RLS non activée (M05/M07/M08) pour la table « ${t} »`);
 
     const buckets = [...m05Text.matchAll(/insert into storage\.buckets/g)].length;
     if (buckets !== 1) fail(`M05 : INSERT INTO storage.buckets attendu une fois (trouvé ${buckets})`);
@@ -628,6 +642,120 @@ function main() {
     ok('M07 : renommages, RLS serveur-only et invariants vérifiés');
   }
 
+  // --- 3g. M08 : lot 6 (commandes, réservations, logistique) -----------------
+  if (!m08) {
+    fail('M08 absente : commandes, réservations et suivi logistique non vérifiables');
+  } else {
+    const m08Text = splitStatements(m08.sql).map(normalize).join('\n');
+    const m08Stmts = splitStatements(m08.sql).map(normalize);
+
+    // Enums nouveaux (contrat lot 6 §2.1) — présence ET valeurs.
+    for (const e of ['reservationstatus', 'depositstatus', 'logisticseventtype']) {
+      if (!m08Text.includes(`create type "${e}" as enum`)) {
+        fail(`M08 : enum « ${e} » absent`);
+      }
+    }
+    if (!/create type "reservationstatus" as enum \('pending', 'confirmed', 'cancelled', 'expired', 'converted'\)/.test(m08Text)) {
+      fail('M08 : valeurs de ReservationStatus non conformes (attendu PENDING/CONFIRMED/CANCELLED/EXPIRED/CONVERTED — doc 09 §5 + doc 12)');
+    }
+    const reservationStatusStmt = m08Stmts.find((s) => s.startsWith('create type "reservationstatus" as enum'));
+    if (!reservationStatusStmt) {
+      fail('M08 : enum ReservationStatus absent');
+    } else if (!reservationStatusStmt.includes("'converted'")) {
+      fail('M08 : ReservationStatus doit porter la valeur CONVERTED (doc 12 : conversion d’une réservation en commande)');
+    }
+    if (!/create type "depositstatus" as enum \('not_required', 'requested', 'reported', 'verified', 'rejected'\)/.test(m08Text)) {
+      fail('M08 : valeurs de DepositStatus non conformes (attendu NOT_REQUIRED/REQUESTED/REPORTED/VERIFIED/REJECTED)');
+    }
+    const logisticsValues = ['supplier', 'inspection', 'purchase_confirmed', 'port_china', 'shipped', 'at_sea', 'arrived_senegal', 'customs', 'available_senegal', 'delivered'];
+    const logisticStmt = m08Stmts.find((s) => s.startsWith('create type "logisticseventtype" as enum'));
+    if (!logisticStmt) {
+      fail('M08 : enum LogisticsEventType absent');
+    } else {
+      for (const v of logisticsValues) {
+        if (!logisticStmt.includes(`'${v}'`)) fail(`M08 : LogisticsEventType, valeur doc 03 §15 « ${v} » absente`);
+      }
+    }
+
+    // Renommage du prix convenu : orders.agreed_price -> orders.agreed_vehicle_price.
+    if (!/alter table public\.orders rename column "agreed_price" to "agreed_vehicle_price"/.test(m08Text)) {
+      fail('M08 : renommage orders.agreed_price -> agreed_vehicle_price absent');
+    }
+
+    // Tables nouvelles (contrat §2.2 et §2.4).
+    for (const t of ['reservations', 'vehicle_logistics_events']) {
+      if (!m08Text.includes(`create table "${t}"`)) {
+        fail(`M08 : table « ${t} » absente`);
+      }
+    }
+
+    // Invariant « une réservation active maximum par véhicule » : index unique PARTIEL.
+    if (!/create unique index "reservations_one_active_per_vehicle_idx" on public\.reservations \("vehicle_id"\) where status in \('pending', 'confirmed'\)/.test(m08Text)) {
+      fail('M08 : index unique partiel « une réservation active maximum par véhicule » absent ou non conforme');
+    }
+    // Invariant « une commande active maximum par véhicule » (BR-103) : index unique PARTIEL.
+    if (!/create unique index "orders_one_active_per_vehicle_idx" on public\.orders \("vehicle_id"\) where status <> 'cancelled'/.test(m08Text)) {
+      fail('M08 : index unique partiel « une commande active maximum par véhicule » absent ou non conforme');
+    }
+
+    // Clés étrangères : RESTRICT là où le corpus l'impose (véhicule / client d'une réservation).
+    for (const [name, ref] of [
+      ['reservations_vehicle_id_fkey', 'references "vehicles"("id") on delete restrict'],
+      ['reservations_customer_id_fkey', 'references "customer_profiles"("id") on delete restrict'],
+    ]) {
+      const stmt = m08Stmts.find((s) => s.includes(`"${name}"`));
+      if (!stmt || !stmt.includes(ref)) fail(`M08 : FK « ${name} » absente ou sans ON DELETE RESTRICT`);
+    }
+
+    // RLS ACTIVÉE sur les quatre tables du lot 6 (contrat §2.6).
+    for (const t of ['reservations', 'orders', 'order_events', 'vehicle_logistics_events']) {
+      if (!m08Text.includes(`alter table public.${t} enable row level security`)) {
+        fail(`M08 : RLS non activée pour « ${t} »`);
+      }
+    }
+
+    // `reservations` : le client lit SES PROPRES lignes (via customer_id) ; aucune écriture client.
+    if (!m08Text.includes('grant select on public.reservations to authenticated')) {
+      fail('M08 : GRANT SELECT client attendu sur « reservations »');
+    }
+    if (!/create policy reservations_select_own on public\.reservations for select to authenticated using \(customer_id = public\.current_customer_profile_id\(\)\)/.test(m08Text)) {
+      fail('M08 : policy reservations_select_own (lignes propres du client) absente ou non conforme');
+    }
+
+    // `orders` : lecture de ses propres lignes réaffirmée.
+    if (!m08Text.includes('grant select on public.orders to authenticated')) {
+      fail('M08 : GRANT SELECT client attendu sur « orders »');
+    }
+    if (!/create policy orders_select_own on public\.orders for select to authenticated using \(customer_id = public\.current_customer_profile_id\(\)\)/.test(m08Text)) {
+      fail('M08 : policy orders_select_own (lignes propres du client) absente ou non conforme');
+    }
+
+    // `order_events` et `vehicle_logistics_events` : ACCÈS SERVEUR UNIQUEMENT —
+    // aucun GRANT ni policy client, privilèges révoqués.
+    for (const t of ['order_events', 'vehicle_logistics_events']) {
+      const granted = m08Stmts.some((s) => /^grant\b/.test(s) && new RegExp(`\\bon public\\.${t}\\b`).test(s));
+      if (granted) {
+        fail(`M08 : GRANT client interdit sur « ${t} » (accès serveur uniquement)`);
+      }
+      if (m08Stmts.some((s) => new RegExp(`^create policy [a-z0-9_]+ on public\\.${t}\\b`).test(s))) {
+        fail(`M08 : policy client inattendue sur « ${t} » (accès serveur uniquement)`);
+      }
+      if (!new RegExp(`revoke all on public\\.${t} from anon, authenticated`).test(m08Text)) {
+        fail(`M08 : REVOKE ALL attendu sur « ${t} » (aucun privilège anon/authenticated)`);
+      }
+    }
+
+    // Aucune écriture client (INSERT/UPDATE/DELETE) sur reservations.
+    for (const cmd of ['insert', 'update', 'delete']) {
+      const granted = m08Stmts.some((s) => new RegExp(`^grant ${cmd}\\b`).test(s) && /\\bon public\\.reservations\\b/.test(s));
+      if (granted) {
+        fail(`M08 : GRANT ${cmd.toUpperCase()} client interdit sur « reservations » (aucune écriture client)`);
+      }
+    }
+
+    ok('M08 : enums, renommage, index uniques partiels et RLS du lot 6 vérifiés');
+  }
+
   // --- 4. résumé -----------------------------------------------------------
   const perMigration = entries
     .filter((e) => EXPECTED_NAMES.includes(e.label))
@@ -636,7 +764,7 @@ function main() {
   const gap = missingEnums.length + missingTables.length + missingColumns.length + divergentColumns.length + missingIndexes.length + missingFks.length + divergentFks.length;
 
   console.log(`  Schéma attendu (prisma migrate diff) : ${expected.enums.size} enums | ${expected.tables.size} tables | ${[...expected.tables.values()].reduce((n, c) => n + c.size, 0)} colonnes | ${expected.indexes.size} index | ${expected.fks.size} clés étrangères`);
-  console.log(`  Structure effective M01..M04 + M07    : ${migrated.enums.size} enums | ${migrated.tables.size} tables | ${[...migrated.tables.values()].reduce((n, c) => n + c.size, 0)} colonnes | ${migrated.indexes.size} index | ${migrated.fks.size} clés étrangères`);
+  console.log(`  Structure effective M01..M04 + M07/M08 : ${migrated.enums.size} enums | ${migrated.tables.size} tables | ${[...migrated.tables.values()].reduce((n, c) => n + c.size, 0)} colonnes | ${migrated.indexes.size} index | ${migrated.fks.size} clés étrangères`);
   console.log('');
   console.log('  Détail par migration (instructions) :');
   for (const m of perMigration) {
@@ -660,10 +788,11 @@ function main() {
     process.exit(1);
   }
   console.log('');
-  console.log('OK — aucune perte de structure : l’union M01..M07 couvre intégralement le schéma');
-  console.log('     (renommages table custom_requests -> custom_vehicle_requests et colonne');
-  console.log('     leads.first_name -> name pris en compte), M05/M07 activent la RLS sur toutes');
-  console.log('     les tables exposées, et M07 pose les invariants du lot 5.');
+  console.log('OK — aucune perte de structure : l’union M01..M08 couvre intégralement le schéma');
+  console.log('     (renommages table custom_requests -> custom_vehicle_requests, colonnes');
+  console.log('     leads.first_name -> name et orders.agreed_price -> agreed_vehicle_price) ;');
+  console.log('     M05/M07/M08 activent la RLS sur toutes les tables exposées, M07 pose les');
+  console.log('     invariants du lot 5 et M08 ceux du lot 6 (index uniques partiels).');
   process.exit(0);
 }
 

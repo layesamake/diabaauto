@@ -19,3 +19,7 @@ export {
 export { favoritesFr, type FavoritesMessages } from "./favorites.fr";
 export { savedSearchesFr, type SavedSearchesMessages } from "./saved-searches.fr";
 export { customRequestMessages, type CustomRequestMessages } from "./custom-request.fr";
+
+// Lot 6 — « Mes commandes » (My Diaba Auto) : espace de noms distinct (même décision d'intégration
+// que le lot 4 — chaque module reste la source unique de ses libellés).
+export { ordersFr, type OrdersMessages } from "./orders.fr";
