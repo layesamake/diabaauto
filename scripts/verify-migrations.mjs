@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Diaba Auto — contrôle hors ligne des migrations M01..M05 (décision T01/T02).
+ * Diaba Auto — contrôle hors ligne des migrations M01..M06 (décision T01/T02).
  *
  * Principe : le schéma `prisma/schema.prisma` est la seule source de vérité de
  * la structure. Le SQL de structure attendu est GÉNÉRÉ par Prisma :
@@ -28,8 +28,8 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(SCRIPT_DIR, '..');
 const MIGRATIONS_DIR = join(ROOT, 'prisma', 'migrations');
 
-const MIGRATION_DIR_RE = /^(\d{14})_(m0[1-5]_[a-z0-9_]+)$/;
-const EXPECTED_NAMES = ['m01_identite', 'm02_referentiels', 'm03_activite_client', 'm04_journaux_audit_index', 'm05_rls_storage'];
+const MIGRATION_DIR_RE = /^(\d{14})_(m\d{2}_[a-z0-9_]+)$/;
+const EXPECTED_NAMES = ['m01_identite', 'm02_referentiels', 'm03_activite_client', 'm04_journaux_audit_index', 'm05_rls_storage', 'm06_integrite_profils_auth'];
 const STRUCTURAL = ['m01_identite', 'm02_referentiels', 'm03_activite_client', 'm04_journaux_audit_index'];
 
 const failures = [];
@@ -146,7 +146,7 @@ function readMigrations() {
     }
     e.sql = readFileSync(file, 'utf8');
     if (!e.sql.trim()) fail(`migration.sql vide dans ${e.dir}`);
-    if (e.label.startsWith('m0') && !/--\s*Diaba Auto - M0[1-5]/.test(e.sql)) {
+    if (e.label.startsWith('m0') && !/--\s*Diaba Auto - M0\d/.test(e.sql)) {
       fail(`en-tête de migration absent dans ${e.dir}/migration.sql`);
     }
   }
@@ -215,7 +215,7 @@ function inventory(sql) {
 // Exécution
 // ---------------------------------------------------------------------------
 function main() {
-  console.log('Diaba Auto — vérification des migrations M01..M05 (hors ligne)');
+  console.log('Diaba Auto — vérification des migrations M01..M06 (hors ligne)');
   console.log('  schéma source : prisma/schema.prisma');
   console.log('');
 
@@ -458,7 +458,11 @@ function main() {
   console.log('');
   console.log('  Détail par migration (instructions) :');
   for (const m of perMigration) {
-    const scope = STRUCTURAL.includes(m.label) ? 'structure + complément' : 'RLS / Storage (manuel)';
+    const scope = STRUCTURAL.includes(m.label)
+      ? 'structure + complément'
+      : m.label === 'm06_integrite_profils_auth'
+        ? 'Intégrité profils/Auth (manuel)'
+        : 'RLS / Storage (manuel)';
     console.log(`    ${m.dir.padEnd(42)} ${String(m.n).padStart(4)}  (${scope})`);
   }
   console.log('');
