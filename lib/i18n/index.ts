@@ -23,3 +23,7 @@ export { customRequestMessages, type CustomRequestMessages } from "./custom-requ
 // Lot 6 — « Mes commandes » (My Diaba Auto) : espace de noms distinct (même décision d'intégration
 // que le lot 4 — chaque module reste la source unique de ses libellés).
 export { ordersFr, type OrdersMessages } from "./orders.fr";
+export { staffOrdersFr, type StaffOrdersMessages } from "./staff-orders.fr";
+
+// Back-office — « Mon compte » (sécurité de l'accès du personnel) : espace de noms distinct.
+export { accountFr, type AccountMessages } from "./account.fr";

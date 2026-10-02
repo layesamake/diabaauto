@@ -4,8 +4,9 @@ import type { PermissionCode } from "@/services/permissions.service";
 
 /**
  * Clés d'écran du back-office, utilisées pour marquer le lien courant.
- * Le lot 5 ajoute Prospects, Demandes, Clients et Revendeurs ; Commandes, Personnel et Audit
- * arrivent aux lots suivants (app/admin/page.tsx).
+ * Le lot 5 ajoute Prospects, Demandes, Clients et Revendeurs, le lot 6 Commandes ; `compte`
+ * (« Mon compte ») n'exige aucune permission : tout membre du personnel y accède.
+ * Personnel et Audit arrivent aux lots suivants (app/admin/page.tsx).
  */
 export type AdminScreenKey =
   | "vehicules"
@@ -14,7 +15,8 @@ export type AdminScreenKey =
   | "demandes"
   | "clients"
   | "revendeurs"
-  | "commandes";
+  | "commandes"
+  | "compte";
 
 /**
  * En-tête du back-office : titre, navigation et déconnexion.
@@ -74,6 +76,9 @@ export function AdminHeader({
       key: "commandes" as const,
       allowed: permissions.includes("order.view"),
     },
+    // « Mon compte » n'exige aucune permission métier : changer son propre mot de passe est ouvert à
+    // tout membre du personnel. La garde réelle (session + acteur `staff` actif) est dans la page.
+    { href: "/admin/compte", label: "Mon compte", key: "compte" as const, allowed: true },
   ].filter((link) => link.allowed);
 
   return (
