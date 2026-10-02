@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { AdminHeader } from "@/components/admin/AdminHeader";
+import { RubricIcon } from "@/components/admin/RubricIcon";
+import { allowedRubricScreens } from "@/components/admin/rubric-screens";
 import { LogoutButton } from "@/components/profile/LogoutButton";
 import { logoutAction } from "@/app/my-diaba-auto/actions";
 import { createAdminMetadata } from "@/app/admin/guard";
@@ -61,53 +63,9 @@ export default async function AdminPage() {
   );
 }
 
-/** Écrans livrés : lot L2 (véhicules, référentiels) puis lot 5 (prospects, demandes, clients, revendeurs), chacun conditionné à la permission qu'exige sa garde serveur. */
+/** Rubriques livrées : le catalogue, les icônes et les permissions sont dans components/admin/rubric-screens.ts. */
 function AdminScreens({ permissions }: { permissions: readonly PermissionCode[] }) {
-  const screens = [
-    {
-      href: "/admin/vehicules",
-      title: "Véhicules",
-      description:
-        "Recherche, création, publication, statut commercial, médias et prix ; fiche d'aperçu incluse.",
-      allowed: permissions.includes("vehicle.view"),
-    },
-    {
-      href: "/admin/referentiels",
-      title: "Référentiels",
-      description: "Marques, modèles, carrosseries, énergies, boîtes, couleurs, équipements et caractéristiques.",
-      allowed: permissions.includes("content.manage"),
-    },
-    {
-      href: "/admin/prospects",
-      title: "Prospects",
-      description: "Prospects et pistes commerciales : assignation, statut, notes privées et historique des échanges.",
-      allowed: permissions.includes("lead.view"),
-    },
-    {
-      href: "/admin/demandes",
-      title: "Demandes sur mesure",
-      description: "Demandes de véhicule personnalisé déposées depuis le site, et leur avancement.",
-      allowed: permissions.includes("lead.view"),
-    },
-    {
-      href: "/admin/clients",
-      title: "Clients",
-      description: "Comptes clients : coordonnées, segment et statut Revendeur.",
-      allowed: permissions.includes("customer.view"),
-    },
-    {
-      href: "/admin/revendeurs",
-      title: "Revendeurs",
-      description: "Demandes d'agrément revendeur : prise en charge, approbation et refus motivé.",
-      allowed: permissions.includes("reseller.view"),
-    },
-    {
-      href: "/admin/commandes",
-      title: "Commandes",
-      description: "Réservations et commandes : transitions, prix convenus figés, historique et suivi logistique du véhicule.",
-      allowed: permissions.includes("order.view"),
-    },
-  ].filter((screen) => screen.allowed);
+  const screens = allowedRubricScreens(permissions);
 
   return (
     <section aria-labelledby="back-office-ecrans" className="grid gap-4">
@@ -116,20 +74,43 @@ function AdminScreens({ permissions }: { permissions: readonly PermissionCode[] 
       </h2>
       <ul className="grid gap-4 sm:grid-cols-2">
         {screens.map((screen) => (
-          <li key={screen.href} className="rounded-xl border border-slate-200 bg-white p-5">
-            <h3 className="text-base font-semibold text-[#011D4F]">{screen.title}</h3>
-            <p className="mt-2 text-sm text-slate-600">{screen.description}</p>
+          <li
+            key={screen.href}
+            className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 transition hover:border-[#0063DF] hover:shadow-sm"
+          >
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-11 w-11 flex-none items-center justify-center rounded-lg bg-[#E8F1FD] text-[#0063DF]">
+                <RubricIcon name={screen.icon} className="h-6 w-6" />
+              </span>
+              <h3 className="pt-2 text-base font-semibold text-[#011D4F]">{screen.title}</h3>
+            </div>
+
+            <p className="mt-3 flex-1 text-sm text-slate-600">{screen.description}</p>
+
             <Link
               href={screen.href}
-              className="mt-4 inline-block text-sm font-semibold text-[#0063DF] hover:text-[#0354A3]"
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#0063DF] px-4 py-3 text-base font-semibold text-white transition hover:bg-[#0354A3] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0063DF]"
             >
               Ouvrir
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                focusable="false"
+                className="h-5 w-5"
+              >
+                <path d="M5 12h13M13 6.5l5.5 5.5-5.5 5.5" />
+              </svg>
             </Link>
           </li>
         ))}
       </ul>
       <p className="text-sm text-slate-600">
-        Les autres écrans du portail opérationnel (commandes, personnel, audit) arrivent aux lots suivants.
+        Les écrans Personnel et Audit arrivent aux lots suivants.
       </p>
     </section>
   );
