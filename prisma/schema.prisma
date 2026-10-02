@@ -120,8 +120,26 @@ enum LeadStatus {
   COMPLETED
 }
 
+/// Statut d'une demande Revendeur (doc 03 §4, contrat lot 5 §2.2).
+enum ResellerApplicationStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+/// Nature d'une activité journalisée sur un prospect (contrat lot 5 §2.2).
+enum LeadActivityType {
+  CALL
+  WHATSAPP
+  EMAIL
+  MEETING
+  STATUS_CHANGE
+}
+
 // `RequestStatus` n'existe pas dans le doc 12 (écart rédactionnel E28) : il reste porté par
-// `custom_requests`, table dont le remodelage est prévu au lot CRM (doc 03 §11).
+// `custom_vehicle_requests` (renommée au lot CRM, doc 03 §11).
 enum RequestStatus {
   RECEIVED
   QUALIFIED
@@ -160,44 +178,48 @@ model Profile {
 }
 
 model CustomerProfile {
-  id             String            @id @default(uuid()) @db.Uuid
-  profileId      String            @unique @map("profile_id") @db.Uuid
-  pricingProfile PricingProfile    @default(STANDARD) @map("pricing_profile")
-  segment        CustomerSegment   @default(INDIVIDUAL) @map("customer_segment")
-  resellerStatus ResellerStatus    @default(NOT_APPLICABLE) @map("reseller_status")
-  firstName      String            @map("first_name")
-  lastName       String            @map("last_name")
-  phone          String?
-  whatsapp       String?
-  country        String            @default("SN")
-  city           String?
-  companyName    String?           @map("company_name")
-  businessType   String?           @map("business_type")
-  createdAt      DateTime          @default(now()) @map("created_at")
-  updatedAt      DateTime          @updatedAt @map("updated_at")
-  profile        Profile           @relation(fields: [profileId], references: [id])
-  favorites      FavoriteVehicle[]
-  savedSearches  SavedSearch[]
-  leads          Lead[]
-  requests       CustomRequest[]
-  orders         Order[]
+  id                   String                 @id @default(uuid()) @db.Uuid
+  profileId            String                 @unique @map("profile_id") @db.Uuid
+  pricingProfile       PricingProfile         @default(STANDARD) @map("pricing_profile")
+  segment              CustomerSegment        @default(INDIVIDUAL) @map("customer_segment")
+  resellerStatus       ResellerStatus         @default(NOT_APPLICABLE) @map("reseller_status")
+  firstName            String                 @map("first_name")
+  lastName             String                 @map("last_name")
+  phone                String?
+  whatsapp             String?
+  country              String                 @default("SN")
+  city                 String?
+  companyName          String?                @map("company_name")
+  businessType         String?                @map("business_type")
+  createdAt            DateTime               @default(now()) @map("created_at")
+  updatedAt            DateTime               @updatedAt @map("updated_at")
+  profile              Profile                @relation(fields: [profileId], references: [id])
+  favorites            FavoriteVehicle[]
+  savedSearches        SavedSearch[]
+  leads                Lead[]
+  requests             CustomVehicleRequest[]
+  resellerApplications ResellerApplication[]
+  orders               Order[]
 
   @@index([pricingProfile, resellerStatus])
   @@map("customer_profiles")
 }
 
 model StaffProfile {
-  id            String      @id @default(uuid()) @db.Uuid
-  profileId     String      @unique @map("profile_id") @db.Uuid
-  firstName     String      @map("first_name")
-  lastName      String      @map("last_name")
-  phone         String?
-  jobTitle      String?     @map("job_title")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
-  profile       Profile     @relation(fields: [profileId], references: [id])
-  roles         StaffRole[]
-  assignedLeads Lead[]
+  id                   String                @id @default(uuid()) @db.Uuid
+  profileId            String                @unique @map("profile_id") @db.Uuid
+  firstName            String                @map("first_name")
+  lastName             String                @map("last_name")
+  phone                String?
+  jobTitle             String?               @map("job_title")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+  profile              Profile               @relation(fields: [profileId], references: [id])
+  roles                StaffRole[]
+  assignedLeads        Lead[]
+  reviewedApplications ResellerApplication[] @relation("ResellerApplicationReviewer")
+  leadNotes            LeadNote[]
+  leadActivities       LeadActivity[]
 
   @@map("staff_profiles")
 }
@@ -591,43 +613,110 @@ model SavedSearch {
 }
 
 model Lead {
-  id                    String           @id @default(uuid()) @db.Uuid
-  customerId            String?          @map("customer_id") @db.Uuid
-  vehicleId             String?          @map("vehicle_id") @db.Uuid
-  assignedSalespersonId String?          @map("assigned_salesperson_id") @db.Uuid
-  customer              CustomerProfile? @relation(fields: [customerId], references: [id])
-  vehicle               Vehicle?         @relation(fields: [vehicleId], references: [id])
-  assignee              StaffProfile?    @relation(fields: [assignedSalespersonId], references: [id])
-  firstName             String           @map("first_name")
+  id                    String                 @id @default(uuid()) @db.Uuid
+  reference             String                 @unique
+  customerId            String?                @map("customer_id") @db.Uuid
+  vehicleId             String?                @map("vehicle_id") @db.Uuid
+  assignedSalespersonId String?                @map("assigned_salesperson_id") @db.Uuid
+  customer              CustomerProfile?       @relation(fields: [customerId], references: [id])
+  vehicle               Vehicle?               @relation(fields: [vehicleId], references: [id])
+  assignee              StaffProfile?          @relation(fields: [assignedSalespersonId], references: [id])
+  name                  String
   phone                 String
-  status                LeadStatus       @default(NEW)
-  createdAt             DateTime         @default(now()) @map("created_at")
-  updatedAt             DateTime         @updatedAt @map("updated_at")
+  whatsapp              String?
+  email                 String?
+  source                String?
+  budgetMin             Decimal?               @map("budget_min") @db.Decimal(14, 2)
+  budgetMax             Decimal?               @map("budget_max") @db.Decimal(14, 2)
+  status                LeadStatus             @default(NEW)
+  nextFollowUpAt        DateTime?              @map("next_follow_up_at")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
+  notes                 LeadNote[]
+  activities            LeadActivity[]
+  customVehicleRequests CustomVehicleRequest[]
 
   @@index([status, assignedSalespersonId])
   @@map("leads")
 }
 
-// Modèle provisoire : le corpus décrit `custom_vehicle_requests` (doc 03 §11) rattaché au
-// prospect, avec marque/modèle demandés — remodelage prévu au lot CRM.
+// Demandes sur mesure (`custom_vehicle_requests`, doc 03 §11) : rattachées au prospect (`lead_id?`)
+// et, pour le parcours visiteur, au client lorsqu'il est identifié. Marque/modèle demandés et plage
+// d'années sont portés par des colonnes dédiées ; `criteria_json` reste pour le texte libre.
 // `contactName`/`contactPhone` ajoutés au lot 4 (décision T33) : dev.md §4 exige qu'une demande
-// personnalisée « conserve les coordonnées nécessaires même sans compte » (parcours visiteur), ce
-// que le modèle initial ne permettait pas (aucune colonne de contact hors `customerId`).
-model CustomRequest {
-  id           String           @id @default(uuid()) @db.Uuid
-  customerId   String?          @map("customer_id") @db.Uuid
-  customer     CustomerProfile? @relation(fields: [customerId], references: [id])
-  contactName  String?          @map("contact_name")
-  contactPhone String?          @map("contact_phone")
-  criteriaJson Json             @map("criteria_json")
-  budgetMin    Decimal?         @map("budget_min") @db.Decimal(14, 2)
-  budgetMax    Decimal?         @map("budget_max") @db.Decimal(14, 2)
-  status       RequestStatus    @default(RECEIVED)
-  createdAt    DateTime         @default(now()) @map("created_at")
-  updatedAt    DateTime         @updatedAt @map("updated_at")
+// personnalisée « conserve les coordonnées nécessaires même sans compte » (parcours visiteur).
+model CustomVehicleRequest {
+  id             String           @id @default(uuid()) @db.Uuid
+  customerId     String?          @map("customer_id") @db.Uuid
+  customer       CustomerProfile? @relation(fields: [customerId], references: [id])
+  leadId         String?          @map("lead_id") @db.Uuid
+  lead           Lead?            @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  contactName    String?          @map("contact_name")
+  contactPhone   String?          @map("contact_phone")
+  requestedBrand String?          @map("requested_brand")
+  requestedModel String?          @map("requested_model")
+  yearMin        Int?             @map("year_min")
+  yearMax        Int?             @map("year_max")
+  criteriaJson   Json             @map("criteria_json")
+  budgetMin      Decimal?         @map("budget_min") @db.Decimal(14, 2)
+  budgetMax      Decimal?         @map("budget_max") @db.Decimal(14, 2)
+  status         RequestStatus    @default(RECEIVED)
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
 
   @@index([customerId, status])
-  @@map("custom_requests")
+  @@map("custom_vehicle_requests")
+}
+
+/// Demande Revendeur (doc 03 §4, contrat lot 5 §2.2). Un client ne peut avoir qu'une demande
+/// ouverte à la fois (statut PENDING ou UNDER_REVIEW) — garanti par un index unique partiel posé
+/// en migration (non exprimable en Prisma).
+model ResellerApplication {
+  id              String                    @id @default(uuid()) @db.Uuid
+  customerId      String                    @map("customer_id") @db.Uuid
+  customer        CustomerProfile           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  companyName     String                    @map("company_name")
+  businessType    String?                   @map("business_type")
+  estimatedVolume String?                   @map("estimated_volume")
+  status          ResellerApplicationStatus @default(PENDING)
+  reviewedById    String?                   @map("reviewed_by") @db.Uuid
+  reviewedBy      StaffProfile?             @relation("ResellerApplicationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt      DateTime?                 @map("reviewed_at")
+  rejectionReason String?                   @map("rejection_reason")
+  createdAt       DateTime                  @default(now()) @map("created_at")
+  updatedAt       DateTime                  @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("reseller_applications")
+}
+
+/// Note privée sur un prospect (doc 03 §11, « Privé »).
+model LeadNote {
+  id        String       @id @default(uuid()) @db.Uuid
+  leadId    String       @map("lead_id") @db.Uuid
+  lead      Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  authorId  String       @map("author_id") @db.Uuid
+  author    StaffProfile @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  content   String
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  @@index([leadId, createdAt])
+  @@map("lead_notes")
+}
+
+/// Historique d'activités d'un prospect (doc 03 §11).
+model LeadActivity {
+  id          String           @id @default(uuid()) @db.Uuid
+  leadId      String           @map("lead_id") @db.Uuid
+  lead        Lead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  type        LeadActivityType
+  description String
+  performedBy String?          @map("performed_by") @db.Uuid
+  performer   StaffProfile?    @relation(fields: [performedBy], references: [id], onDelete: SetNull)
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  @@index([leadId, createdAt])
+  @@map("lead_activities")
 }
 
 model Order {

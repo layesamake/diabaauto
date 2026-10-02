@@ -1,16 +1,25 @@
 #!/usr/bin/env node
 /**
- * Diaba Auto — contrôle hors ligne des migrations M01..M06 (décision T01/T02).
+ * Diaba Auto — contrôle hors ligne des migrations M01..M07 (décision T01/T02).
  *
  * Principe : le schéma `prisma/schema.prisma` est la seule source de vérité de
  * la structure. Le SQL de structure attendu est GÉNÉRÉ par Prisma :
  *
  *   npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script
  *
- * Le script reconstitue les instructions des migrations M01..M04 (partie
- * structurelle, générée depuis le schéma) et vérifie qu'AUCUNE instruction du
- * schéma n'a été perdue : table, enum, colonne, contrainte ou index.
+ * Le script reconstruit la structure EFFECTIVE produite par les migrations
+ * M01..M04 + M07 (partie structurelle) en repliant les instructions dans
+ * l'ordre : CREATE TABLE, ALTER TABLE … ADD COLUMN, ADD CONSTRAINT, mais aussi
+ * les RENOMMAGES (ALTER TABLE … RENAME TO, RENAME COLUMN, RENAME CONSTRAINT,
+ * ALTER INDEX … RENAME TO). La structure reconstruite est comparée au schéma
+ * attendu : AUCUN objet (enum, table, colonne, index, clé étrangère) du schéma
+ * ne doit manquer, et aucun type de colonne ne doit diverger.
+ *
  * La comparaison est normalisée : espaces, majuscules et commentaires `--` ignorés.
+ *
+ * Renommages explicitement pris en charge (contrat lot 5 §2) :
+ *   * table   custom_requests  -> custom_vehicle_requests
+ *   * colonne leads.first_name -> leads.name
  *
  * Aucune base de données n'est contactée. Aucune dépendance externe.
  *
@@ -29,8 +38,8 @@ const ROOT = join(SCRIPT_DIR, '..');
 const MIGRATIONS_DIR = join(ROOT, 'prisma', 'migrations');
 
 const MIGRATION_DIR_RE = /^(\d{14})_(m\d{2}_[a-z0-9_]+)$/;
-const EXPECTED_NAMES = ['m01_identite', 'm02_referentiels', 'm03_activite_client', 'm04_journaux_audit_index', 'm05_rls_storage', 'm06_integrite_profils_auth'];
-const STRUCTURAL = ['m01_identite', 'm02_referentiels', 'm03_activite_client', 'm04_journaux_audit_index'];
+const EXPECTED_NAMES = ['m01_identite', 'm02_referentiels', 'm03_activite_client', 'm04_journaux_audit_index', 'm05_rls_storage', 'm06_integrite_profils_auth', 'm07_crm_revendeur'];
+const STRUCTURAL = ['m01_identite', 'm02_referentiels', 'm03_activite_client', 'm04_journaux_audit_index', 'm07_crm_revendeur'];
 
 const failures = [];
 const notes = [];
@@ -184,38 +193,138 @@ function prismaDiffScript() {
 }
 
 // ---------------------------------------------------------------------------
-// 3. Inventaire des objets du schéma attendu
+// 3. Modèle structurel effectif : repli (fold) des instructions SQL
 // ---------------------------------------------------------------------------
-function inventory(sql) {
-  const stmts = splitStatements(sql).map(normalize);
-  const text = stmts.join('\n');
-  const enums = [...text.matchAll(/create type "([^"]+)" as enum/g)].map((m) => m[1]);
-  const tables = [...text.matchAll(/create table "([^"]+)"/g)].map((m) => m[1]);
-  const indexes = [...text.matchAll(/create (?:unique )?index "([^"]+)"/g)].map((m) => m[1]);
-  const fks = [...text.matchAll(/add constraint "([^"]+)" foreign key/g)].map((m) => m[1]);
-  const checks = [...text.matchAll(/add constraint "([^"]+)" check/g)].map((m) => m[1]);
-
-  // colonnes : « "col" TYPE … » dans le corps de chaque CREATE TABLE
-  const columns = [];
-  for (const stmt of stmts) {
-    const m = stmt.match(/^create table "([^"]+)"\s*\((.*)\)$/);
-    if (!m) continue;
-    const [, table, body] = m;
-    for (const line of body.split(',')) {
-      const c = line.trim().match(/^"([^"]+)"\s+(.+)$/);
-      if (c && !/^(constraint|primary|foreign|unique|check)\b/.test(c[1])) {
-        columns.push({ table, column: c[1], def: c[0] });
-      }
+/** Colonnes d'un corps de CREATE TABLE (découpage respectant les parenthèses). */
+function parseColumns(body) {
+  const cols = new Map();
+  const parts = [];
+  let depth = 0;
+  let cur = '';
+  for (const ch of body) {
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) {
+      parts.push(cur);
+      cur = '';
+    } else {
+      cur += ch;
     }
   }
-  return { stmts, text, enums, tables, indexes, fks, checks, columns };
+  if (cur.trim()) parts.push(cur);
+
+  for (const line of parts) {
+    const t = line.trim();
+    const c = t.match(/^"([^"]+)"\s+(.+)$/);
+    if (c && !/^(constraint|primary|foreign|unique|check)\b/.test(c[1])) {
+      cols.set(c[1], normalize(t));
+    }
+  }
+  return cols;
+}
+
+const TABLE_REF = '(?:public\\.)?(?:"([^"]+)"|([a-z0-9_]+))';
+const tableRef = (s) => {
+  const m = s.match(new RegExp(`^alter table ${TABLE_REF}`));
+  return m ? m[1] || m[2] : null;
+};
+
+function renameTable(model, oldName, newName) {
+  if (model.tables.has(oldName)) {
+    model.tables.set(newName, model.tables.get(oldName));
+    model.tables.delete(oldName);
+  }
+  const qOld = `"${oldName}"`;
+  const qNew = `"${newName}"`;
+  for (const [k, v] of [...model.indexes]) if (v.includes(qOld)) model.indexes.set(k, v.split(qOld).join(qNew));
+  for (const [k, v] of [...model.fks]) if (v.includes(qOld)) model.fks.set(k, v.split(qOld).join(qNew));
+}
+
+function renameColumn(model, table, oldCol, newCol) {
+  const cols = model.tables.get(table);
+  if (!cols || !cols.has(oldCol)) return;
+  const def = cols.get(oldCol).split(`"${oldCol}"`).join(`"${newCol}"`);
+  cols.delete(oldCol);
+  cols.set(newCol, def);
+}
+
+function renameConstraint(model, oldName, newName) {
+  const q0 = `"${oldName}"`;
+  const q1 = `"${newName}"`;
+  if (model.fks.has(oldName)) {
+    model.fks.set(newName, model.fks.get(oldName).split(q0).join(q1));
+    model.fks.delete(oldName);
+  }
+  if (model.checks.has(oldName)) {
+    model.checks.delete(oldName);
+    model.checks.add(newName);
+  }
+}
+
+function renameIndex(model, oldName, newName) {
+  if (!model.indexes.has(oldName)) return;
+  model.indexes.set(newName, model.indexes.get(oldName).split(`"${oldName}"`).join(`"${newName}"`));
+  model.indexes.delete(oldName);
+}
+
+/** Applique UNE instruction normalisée au modèle structurel. */
+function applyStatement(model, s) {
+  let m;
+  if ((m = s.match(/^create type "([^"]+)" as enum/))) {
+    model.enums.add(m[1]);
+    return;
+  }
+  if ((m = s.match(/^create table "([^"]+)"\s*\((.*)\)$/))) {
+    model.tables.set(m[1], parseColumns(m[2]));
+    return;
+  }
+  if ((m = s.match(/^create (?:unique )?index (?:if not exists )?"([^"]+)"/))) {
+    model.indexes.set(m[1], s);
+    return;
+  }
+  if ((m = s.match(new RegExp(`^alter table ${TABLE_REF} rename to (?:"([^"]+)"|([a-z0-9_]+))$`)))) {
+    renameTable(model, m[1] || m[2], m[3] || m[4]);
+    return;
+  }
+  if ((m = s.match(new RegExp(`^alter table ${TABLE_REF} rename column "([^"]+)" to "([^"]+)"$`)))) {
+    renameColumn(model, m[1] || m[2], m[3], m[4]);
+    return;
+  }
+  if ((m = s.match(new RegExp(`^alter table ${TABLE_REF} rename constraint "([^"]+)" to "([^"]+)"$`)))) {
+    renameConstraint(model, m[3], m[4]);
+    return;
+  }
+  if ((m = s.match(new RegExp(`^alter index ${TABLE_REF} rename to "([^"]+)"$`)))) {
+    renameIndex(model, m[1] || m[2], m[3]);
+    return;
+  }
+  if ((m = s.match(new RegExp(`^alter table ${TABLE_REF} add column "([^"]+)" (.+)$`)))) {
+    const table = m[1] || m[2];
+    const col = m[3];
+    if (!model.tables.has(table)) model.tables.set(table, new Map());
+    model.tables.get(table).set(col, `"${col}" ${m[4]}`);
+    return;
+  }
+  // Contraintes : un ALTER peut en porter plusieurs (CHECK notamment).
+  const table = tableRef(s);
+  if (table) {
+    for (const fk of s.matchAll(/add constraint "([^"]+)" foreign key/g)) model.fks.set(fk[1], s);
+    for (const ck of s.matchAll(/add constraint "([^"]+)" check/g)) model.checks.add(ck[1]);
+  }
+}
+
+/** Construit le modèle structurel effectif à partir d'un script SQL. */
+function modelFromSql(sql) {
+  const model = { enums: new Set(), tables: new Map(), indexes: new Map(), fks: new Map(), checks: new Set() };
+  for (const s of splitStatements(sql).map(normalize)) applyStatement(model, s);
+  return model;
 }
 
 // ---------------------------------------------------------------------------
 // Exécution
 // ---------------------------------------------------------------------------
 function main() {
-  console.log('Diaba Auto — vérification des migrations M01..M06 (hors ligne)');
+  console.log('Diaba Auto — vérification des migrations M01..M07 (hors ligne)');
   console.log('  schéma source : prisma/schema.prisma');
   console.log('');
 
@@ -223,46 +332,58 @@ function main() {
   readLockFile();
 
   const diffSql = prismaDiffScript();
-  const expected = inventory(diffSql);
+  const expected = modelFromSql(diffSql);
 
   const structureEntries = entries.filter((e) => STRUCTURAL.includes(e.label));
   const migratedSql = structureEntries.map((e) => e.sql).join('\n\n');
-  const migrated = inventory(migratedSql);
-  const migratedNormStmts = new Set(splitStatements(migratedSql).map(normalize));
-  const migratedText = migrated.stmts.join('\n');
+  const migrated = modelFromSql(migratedSql);
 
-  // --- 3a. instructions du schéma absentes des migrations ------------------
-  const missing = expected.stmts.filter((s) => !migratedNormStmts.has(s));
-  for (const stmt of missing) {
-    const kind = /^create table/.test(stmt)
-      ? 'TABLE'
-      : /^create type/.test(stmt)
-      ? 'ENUM'
-      : /^create (unique )?index/.test(stmt)
-      ? 'INDEX'
-      : /add constraint .* foreign key/.test(stmt)
-      ? 'FK'
-      : 'INSTRUCTION';
-    const name = (stmt.match(/"([^"]+)"/) || [, '?'])[1];
-    fail(`${kind} du schéma absent des migrations : ${name}`);
+  // --- 3a. enums, tables, index, clés étrangères du schéma -----------------
+  const missingEnums = [...expected.enums].filter((e) => !migrated.enums.has(e));
+  for (const e of missingEnums) fail(`ENUM du schéma absent des migrations : ${e}`);
+
+  const missingTables = [...expected.tables.keys()].filter((t) => !migrated.tables.has(t));
+  for (const t of missingTables) fail(`TABLE du schéma absente des migrations : ${t}`);
+
+  const missingIndexes = [...expected.indexes.keys()].filter((i) => !migrated.indexes.has(i));
+  for (const i of missingIndexes) fail(`INDEX du schéma absent des migrations : ${i}`);
+
+  const missingFks = [];
+  const divergentFks = [];
+  for (const [name, stmt] of expected.fks) {
+    if (!migrated.fks.has(name)) missingFks.push(name);
+    else if (migrated.fks.get(name) !== stmt) divergentFks.push(name);
   }
+  for (const n of missingFks) fail(`FK du schéma absente des migrations : ${n}`);
+  for (const n of divergentFks) fail(`FK du schéma divergente dans les migrations : ${n}`);
 
   // --- 3b. colonnes : contrôle explicite (détecte une perte partielle) -----
-  const missingColumns = expected.columns.filter((c) => !migratedText.includes(c.def));
-  for (const c of missingColumns) {
-    fail(`COLONNE du schéma absente des migrations : ${c.table}.${c.column}`);
+  const missingColumns = [];
+  const divergentColumns = [];
+  for (const [table, cols] of expected.tables) {
+    const migratedCols = migrated.tables.get(table);
+    if (!migratedCols) continue; // table déjà signalée
+    for (const [col, def] of cols) {
+      if (!migratedCols.has(col)) missingColumns.push(`${table}.${col}`);
+      else if (migratedCols.get(col) !== def) divergentColumns.push(`${table}.${col}`);
+    }
   }
+  for (const c of missingColumns) fail(`COLONNE du schéma absente des migrations : ${c}`);
+  for (const c of divergentColumns) fail(`COLONNE du schéma divergente dans les migrations : ${c}`);
 
-  // --- 3c. M05 : RLS obligatoire sur toutes les tables exposées -------------
+  // --- 3c. M05/M07 : RLS obligatoire sur toutes les tables exposées --------
   const m05 = entries.find((e) => e.label === 'm05_rls_storage');
+  const m07 = entries.find((e) => e.label === 'm07_crm_revendeur');
+  const rlsText = [m05, m07].filter(Boolean).map((e) => splitStatements(e.sql).map(normalize).join('\n')).join('\n');
   if (!m05) {
     fail('M05 absente : RLS et policies non vérifiables');
   } else {
     const m05Text = normalize(m05.sql);
-    const tablesWithoutRls = expected.tables.filter(
-      (t) => !m05Text.includes(`alter table public.${t} enable row level security`)
-    );
-    for (const t of tablesWithoutRls) fail(`RLS non activée dans M05 pour la table « ${t} »`);
+    // La RLS peut être activée en M05 (tables historiques) ou en M07 (tables/renommages du lot 5).
+    const tablesWithoutRls = expected.tables
+      ? [...expected.tables.keys()].filter((t) => !rlsText.includes(`alter table public.${t} enable row level security`))
+      : [];
+    for (const t of tablesWithoutRls) fail(`RLS non activée (M05/M07) pour la table « ${t} »`);
 
     const buckets = [...m05Text.matchAll(/insert into storage\.buckets/g)].length;
     if (buckets !== 1) fail(`M05 : INSERT INTO storage.buckets attendu une fois (trouvé ${buckets})`);
@@ -325,7 +446,6 @@ function main() {
     }
     // Les colonnes de prix ont quitté `vehicles` (décision D10) : ces colonnes
     // ne doivent plus apparaître du tout dans le code de M04 (aucun CHECK de montant).
-    // Les commentaires sont ignorés : seule l'instruction SQL compte.
     const m04Code = splitStatements(m04.sql).map(normalize).join('\n');
     if (/(public_price|reseller_price)/.test(m04Code)) {
       fail('M04 : référence à public_price/reseller_price de « vehicles » : colonnes supprimées (D10)');
@@ -369,6 +489,8 @@ function main() {
     if (!only('vehicles', 'select')) fail(`M05 : « vehicles » doit n'accorder que SELECT (obtenu : ${[...cmdsOf('vehicles')].join(', ') || 'aucune policy'})`);
     if (!only('vehicle_media', 'select')) fail(`M05 : « vehicle_media » doit n'accorder que SELECT (obtenu : ${[...cmdsOf('vehicle_media')].join(', ') || 'aucune policy'})`);
     // lignes propres : lecture seule pour leads/orders/custom_requests
+    // NB : `leads` est ensuite basculé en accès serveur uniquement par M07 (§3f) ; le présent
+    // contrôle porte sur l'état de M05, qui reste la référence historique de la policy.
     for (const t of ['leads', 'orders', 'custom_requests']) {
       if (!only(t, 'select')) fail(`M05 : « ${t} » doit n'accorder que SELECT de ses lignes (obtenu : ${[...cmdsOf(t)].join(', ') || 'aucune policy'})`);
     }
@@ -421,11 +543,9 @@ function main() {
           }
         }
       }
-      // Le prix n'est plus porté par `vehicles` (D10) : la lecture client doit se
-      // limiter aux colonnes descriptives du catalogue publié.
-      for (const expected of ['reference', 'slug', 'title', 'brand_id', 'model_id', 'condition', 'year', 'logistics_location', 'commercial_status', 'is_published']) {
-        if (!union.has(expected)) {
-          fail(`M05 : GRANT SELECT sur vehicles.${expected} attendu (colonne publique du catalogue)`);
+      for (const expectedCol of ['reference', 'slug', 'title', 'brand_id', 'model_id', 'condition', 'year', 'logistics_location', 'commercial_status', 'is_published']) {
+        if (!union.has(expectedCol)) {
+          fail(`M05 : GRANT SELECT sur vehicles.${expectedCol} attendu (colonne publique du catalogue)`);
         }
       }
       // Fermeture : tout autre GRANT visant « vehicles » (forme globale, table
@@ -445,16 +565,78 @@ function main() {
     }
   }
 
+  // --- 3f. M07 : renommages, RLS serveur-only et invariant « demande ouverte » -
+  if (!m07) {
+    fail('M07 absente : renommages, RLS et invariants du lot 5 non vérifiables');
+  } else {
+    const m07Text = splitStatements(m07.sql).map(normalize).join('\n');
+
+    // Renommages prescrits (contrat §2.3 / §2.1).
+    if (!/alter table public\.custom_requests rename to custom_vehicle_requests/.test(m07Text)) {
+      fail('M07 : renommage de table custom_requests -> custom_vehicle_requests absent');
+    }
+    if (!/alter table public\.leads rename column "first_name" to "name"/.test(m07Text)) {
+      fail('M07 : renommage de colonne leads.first_name -> name absent');
+    }
+
+    // RLS activée sur les tables nouvelles / renommées (§2.4).
+    for (const t of ['leads', 'custom_vehicle_requests', 'reseller_applications', 'lead_notes', 'lead_activities']) {
+      if (!m07Text.includes(`alter table public.${t} enable row level security`)) {
+        fail(`M07 : RLS non activée pour « ${t} »`);
+      }
+    }
+
+    // Accès serveur uniquement : aucun GRANT ni policy client sur les tables CRM / Revendeur.
+    for (const t of ['leads', 'lead_notes', 'lead_activities', 'reseller_applications']) {
+      if (new RegExp(`grant [^;]* on (?:public\\.)?"?${t}"?\\b`).test(m07Text)) {
+        fail(`M07 : GRANT client interdit sur « ${t} » (accès serveur uniquement)`);
+      }
+      if (new RegExp(`create policy [a-z0-9_]+ on (?:public\\.)?"?${t}"?\\b`).test(m07Text)) {
+        fail(`M07 : policy client inattendue sur « ${t} » (accès serveur uniquement)`);
+      }
+    }
+    // `leads` : la policy M05 et le privilège client sont retirés.
+    if (!/drop policy if exists leads_select_own on public\.leads/.test(m07Text)) {
+      fail('M07 : la policy client leads_select_own (M05) doit être retirée');
+    }
+    if (!/revoke all on public\.leads from anon, authenticated/.test(m07Text)) {
+      fail('M07 : les privilèges client sur « leads » doivent être révoqués');
+    }
+    // `custom_vehicle_requests` : privilèges CONSERVÉS (aucun REVOKE, aucun nouveau GRANT).
+    if (/revoke [^;]* on public\.custom_vehicle_requests/.test(m07Text)) {
+      fail('M07 : les privilèges client de custom_vehicle_requests doivent être CONSERVÉS (aucun REVOKE)');
+    }
+    if (/grant [^;]* on public\.custom_vehicle_requests/.test(m07Text)) {
+      fail('M07 : aucun nouveau GRANT attendu sur custom_vehicle_requests (privilèges conservés)');
+    }
+
+    // Invariant corpus « une demande ouverte maximum » (contrat §2.2).
+    if (!/unique index "reseller_applications_one_open_per_customer_idx"[^;]*where status in \('pending', 'under_review'\)/.test(m07Text)) {
+      fail('M07 : index unique partiel « une demande ouverte maximum » absent');
+    }
+
+    // Contraintes CHECK de cohérence (budgets leads, plage d'années des demandes).
+    for (const c of [
+      'leads_budget_min_non_negative',
+      'leads_budget_max_non_negative',
+      'leads_budget_range',
+      'custom_vehicle_requests_year_range',
+    ]) {
+      if (!m07Text.includes(c)) fail(`M07 : contrainte CHECK « ${c} » absente`);
+    }
+
+    ok('M07 : renommages, RLS serveur-only et invariants vérifiés');
+  }
+
   // --- 4. résumé -----------------------------------------------------------
   const perMigration = entries
     .filter((e) => EXPECTED_NAMES.includes(e.label))
     .map((e) => ({ label: e.label, dir: e.dir, n: splitStatements(e.sql).length }));
 
-  console.log(`  Schéma attendu (prisma migrate diff) : ${expected.stmts.length} instructions`);
-  console.log(
-    `    enums ${expected.enums.length} | tables ${expected.tables.length} | colonnes ${expected.columns.length} | index ${expected.indexes.length} | clés étrangères ${expected.fks.length}`
-  );
-  console.log(`  Migrations M01..M04 (structure)       : ${migrated.stmts.length} instructions`);
+  const gap = missingEnums.length + missingTables.length + missingColumns.length + divergentColumns.length + missingIndexes.length + missingFks.length + divergentFks.length;
+
+  console.log(`  Schéma attendu (prisma migrate diff) : ${expected.enums.size} enums | ${expected.tables.size} tables | ${[...expected.tables.values()].reduce((n, c) => n + c.size, 0)} colonnes | ${expected.indexes.size} index | ${expected.fks.size} clés étrangères`);
+  console.log(`  Structure effective M01..M04 + M07    : ${migrated.enums.size} enums | ${migrated.tables.size} tables | ${[...migrated.tables.values()].reduce((n, c) => n + c.size, 0)} colonnes | ${migrated.indexes.size} index | ${migrated.fks.size} clés étrangères`);
   console.log('');
   console.log('  Détail par migration (instructions) :');
   for (const m of perMigration) {
@@ -469,16 +651,19 @@ function main() {
   if (notes.length) {
     for (const n of notes) console.log(`  [ok] ${n}`);
   }
-  console.log(`  ÉCART = ${missing.length + missingColumns.length} instruction(s)/colonne(s) du schéma absente(s) des migrations`);
-  console.log('');
+  console.log(`  ÉCART = ${gap} objet(s) du schéma absent(s)/divergent(s) dans la structure effective`);
 
   if (failures.length) {
+    console.error('');
     console.error('ÉCHEC — anomalies détectées :');
     for (const f of failures) console.error(`  ✗ ${f}`);
     process.exit(1);
   }
-  console.log('OK — aucune perte de structure : les migrations M01..M04 couvrent intégralement le schéma,');
-  console.log('     et M05 active la RLS sur toutes les tables exposées.');
+  console.log('');
+  console.log('OK — aucune perte de structure : l’union M01..M07 couvre intégralement le schéma');
+  console.log('     (renommages table custom_requests -> custom_vehicle_requests et colonne');
+  console.log('     leads.first_name -> name pris en compte), M05/M07 activent la RLS sur toutes');
+  console.log('     les tables exposées, et M07 pose les invariants du lot 5.');
   process.exit(0);
 }
 

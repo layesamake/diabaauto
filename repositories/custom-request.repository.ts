@@ -8,15 +8,17 @@ import type {
 } from "@/services/custom-request.service";
 
 /**
- * Accès Prisma aux demandes personnalisées (`custom_requests`, contrat lot 4 §2 Sous-agent C).
+ * Accès Prisma aux demandes sur mesure (`custom_vehicle_requests`, ex-`custom_requests`,
+ * contrat lot 4 §2 Sous-agent C ; renommage lot 5 §2.3).
  *
  * Une seule `select` explicite : elle ne contient que les colonnes nécessaires à la projection du
  * service. L'écriture passe exclusivement par ce repository (service_role via Prisma) — la RLS en
  * base n'autorise qu'un SELECT de ses propres lignes pour un client authentifié, aucun INSERT direct
  * côté client (dev.md §6).
  *
- * Périmètre : `custom_requests` uniquement, `create` et `listByCustomer` (surface gelée du contrat).
- * Le schéma Prisma n'est jamais modifié ici (T33, déjà posé par l'orchestrateur).
+ * Périmètre : `custom_vehicle_requests` (table renommée), `create`, `listByCustomer`, ainsi que les
+ * lectures/écritures du personnel (`list`, `findById`, `updateStatus`). Le schéma Prisma est la
+ * source de vérité (lot 5 §2.3) : le modèle Prisma est `CustomVehicleRequest`.
  */
 
 export const customRequestSelect = {
@@ -64,7 +66,7 @@ function isPlainObject(value: Prisma.JsonValue): boolean {
 
 /** Sous-ensemble du client Prisma utilisé — permet d'injecter un double en test unitaire. */
 export type CustomRequestClient = {
-  customRequest: {
+  customVehicleRequest: {
     create(args: {
       data: {
         customerId: string | null;
@@ -77,10 +79,19 @@ export type CustomRequestClient = {
       select: typeof customRequestSelect;
     }): Promise<CustomRequestDbRow>;
     findMany(args: {
-      where: { customerId: string };
+      where: { customerId?: string; status?: CustomRequestStatus };
       select: typeof customRequestSelect;
       orderBy: { createdAt: "desc" };
     }): Promise<CustomRequestDbRow[]>;
+    findUnique(args: {
+      where: { id: string };
+      select: typeof customRequestSelect;
+    }): Promise<CustomRequestDbRow | null>;
+    update(args: {
+      where: { id: string };
+      data: { status: CustomRequestStatus };
+      select: typeof customRequestSelect;
+    }): Promise<CustomRequestDbRow>;
   };
 };
 
@@ -89,7 +100,7 @@ export function createCustomRequestRepository(
 ): CustomRequestRepository {
   return {
     async create(data: CustomRequestCreateData) {
-      const row = await client.customRequest.create({
+      const row = await client.customVehicleRequest.create({
         data: {
           customerId: data.customerId,
           contactName: data.contactName,
@@ -105,13 +116,42 @@ export function createCustomRequestRepository(
     },
 
     async listByCustomer(customerId: string) {
-      const rows = await client.customRequest.findMany({
+      const rows = await client.customVehicleRequest.findMany({
         where: { customerId },
         select: customRequestSelect,
         orderBy: { createdAt: "desc" },
       });
 
       return rows.map(toCustomRequestRow);
+    },
+
+    async list(filters) {
+      const rows = await client.customVehicleRequest.findMany({
+        where: filters?.status ? { status: filters.status } : {},
+        select: customRequestSelect,
+        orderBy: { createdAt: "desc" },
+      });
+
+      return rows.map(toCustomRequestRow);
+    },
+
+    async findById(id: string) {
+      const row = await client.customVehicleRequest.findUnique({
+        where: { id },
+        select: customRequestSelect,
+      });
+
+      return row ? toCustomRequestRow(row) : null;
+    },
+
+    async updateStatus(id: string, status: CustomRequestStatus) {
+      const row = await client.customVehicleRequest.update({
+        where: { id },
+        data: { status },
+        select: customRequestSelect,
+      });
+
+      return toCustomRequestRow(row);
     },
   };
 }

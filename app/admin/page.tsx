@@ -61,7 +61,7 @@ export default async function AdminPage() {
   );
 }
 
-/** Écrans livrés par le lot L2, chacun conditionné à la permission qu'exige sa garde serveur. */
+/** Écrans livrés : lot L2 (véhicules, référentiels) puis lot 5 (prospects, demandes, clients, revendeurs), chacun conditionné à la permission qu'exige sa garde serveur. */
 function AdminScreens({ permissions }: { permissions: readonly PermissionCode[] }) {
   const screens = [
     {
@@ -76,6 +76,30 @@ function AdminScreens({ permissions }: { permissions: readonly PermissionCode[] 
       title: "Référentiels",
       description: "Marques, modèles, carrosseries, énergies, boîtes, couleurs, équipements et caractéristiques.",
       allowed: permissions.includes("content.manage"),
+    },
+    {
+      href: "/admin/prospects",
+      title: "Prospects",
+      description: "Prospects et pistes commerciales : assignation, statut, notes privées et historique des échanges.",
+      allowed: permissions.includes("lead.view"),
+    },
+    {
+      href: "/admin/demandes",
+      title: "Demandes sur mesure",
+      description: "Demandes de véhicule personnalisé déposées depuis le site, et leur avancement.",
+      allowed: permissions.includes("lead.view"),
+    },
+    {
+      href: "/admin/clients",
+      title: "Clients",
+      description: "Comptes clients : coordonnées, segment et statut Revendeur.",
+      allowed: permissions.includes("customer.view"),
+    },
+    {
+      href: "/admin/revendeurs",
+      title: "Revendeurs",
+      description: "Demandes d'agrément revendeur : prise en charge, approbation et refus motivé.",
+      allowed: permissions.includes("reseller.view"),
     },
   ].filter((screen) => screen.allowed);
 
@@ -99,8 +123,7 @@ function AdminScreens({ permissions }: { permissions: readonly PermissionCode[] 
         ))}
       </ul>
       <p className="text-sm text-slate-600">
-        Les autres écrans du portail opérationnel (clients, prospects, commandes, personnel, audit) arrivent aux lots
-        suivants.
+        Les autres écrans du portail opérationnel (commandes, personnel, audit) arrivent aux lots suivants.
       </p>
     </section>
   );

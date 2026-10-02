@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { AppError } from "@/lib/errors";
 import { createCustomRequestRepository } from "@/repositories/custom-request.repository";
-import { requireCustomer } from "@/services/access.service";
+import { requireCustomer, requireStaff } from "@/services/access.service";
 import type { Actor } from "@/services/identity.service";
 
 /**
@@ -26,7 +26,13 @@ import type { Actor } from "@/services/identity.service";
  * `services/profile.service.ts` / `services/catalogue.service.ts`.
  */
 
-export type CustomRequestStatus = "RECEIVED" | "QUALIFIED" | "SEARCHING" | "PROPOSED" | "CLOSED";
+export type CustomRequestStatus =
+  | "RECEIVED"
+  | "QUALIFIED"
+  | "SEARCHING"
+  | "PROPOSED"
+  | "CLOSED"
+  | "ABANDONED";
 
 /** Critères texte libre ou issus des facettes publiques (`CatalogueFilters`) : aucun champ inventé. */
 export type CustomRequestCriteria = {
@@ -34,6 +40,9 @@ export type CustomRequestCriteria = {
   model?: string;
   notes?: string;
 };
+
+/** Filtres de la vue personnel (contrat lot 5 §5). Aucune valeur inventée. */
+export type CustomRequestFilters = { status?: CustomRequestStatus };
 
 export type CustomRequestView = {
   id: string;
@@ -67,13 +76,16 @@ export type CustomRequestCreateData = {
 };
 
 /**
- * Port d'accès aux données — `custom_requests` uniquement (contrat §2 Sous-agent C).
- * Aucune lecture par identifiant unique n'est exposée : la surface gelée du contrat ne porte que
- * `create` et `listByCustomer`.
+ * Port d'accès aux données — `custom_vehicle_requests` uniquement (contrat lot 4 §2 Sous-agent C,
+ * table renommée au lot 5 §2.3). `create`/`listByCustomer` servent le parcours client ; `list`,
+ * `findById` et `updateStatus` servent la vue personnel (contrat lot 5 §5).
  */
 export type CustomRequestRepository = {
   create(data: CustomRequestCreateData): Promise<CustomRequestRow>;
   listByCustomer(customerId: string): Promise<CustomRequestRow[]>;
+  list(filters?: CustomRequestFilters): Promise<CustomRequestRow[]>;
+  findById(id: string): Promise<CustomRequestRow | null>;
+  updateStatus(id: string, status: CustomRequestStatus): Promise<CustomRequestRow | null>;
 };
 
 export type CustomRequestDependencies = { repository: CustomRequestRepository };
@@ -112,7 +124,7 @@ const NAME_MAX_LENGTH = 80;
 const PHONE_MAX_LENGTH = 32;
 const CRITERIA_TEXT_MAX_LENGTH = 120;
 const NOTES_MAX_LENGTH = 500;
-/** Même forme que `vehicle_prices` / `custom_requests.budget_*` : `DECIMAL(14,2)`, jamais de flottant. */
+/** Même forme que `vehicle_prices` / `custom_vehicle_requests.budget_*` : `DECIMAL(14,2)`, jamais de flottant. */
 const AMOUNT_PATTERN = /^\d{1,12}(?:\.\d{1,2})?$/;
 
 const amountField = z.string().trim().regex(AMOUNT_PATTERN);
@@ -254,4 +266,68 @@ export async function listOwnCustomRequests(actor: Actor): Promise<CustomRequest
   const customer = requireCustomer(actor);
   const rows = await dependencies.repository.listByCustomer(customer.customerId);
   return rows.map(toCustomRequestView);
+}
+
+// ---------------------------------------------------------------------------
+// Vue personnel (contrat lot 5 §5) — gouvernée par `lead.*` (contrat §4, T20)
+// ---------------------------------------------------------------------------
+
+const CUSTOM_REQUEST_STATUSES: readonly CustomRequestStatus[] = [
+  "RECEIVED",
+  "QUALIFIED",
+  "SEARCHING",
+  "PROPOSED",
+  "CLOSED",
+  "ABANDONED",
+];
+
+/** Vrai si la valeur est un statut de demande sur mesure autorisé (aucune valeur inventée). */
+export function isCustomRequestStatus(value: unknown): value is CustomRequestStatus {
+  return typeof value === "string" && (CUSTOM_REQUEST_STATUSES as readonly string[]).includes(value);
+}
+
+/** Vrai si `next` est un statut admissible. Le corpus n'impose pas de machine à états ici. */
+function assertStatus(value: unknown, field: string): asserts value is CustomRequestStatus {
+  if (!isCustomRequestStatus(value)) {
+    throw new CustomRequestValidationError([field]);
+  }
+}
+
+/**
+ * Liste les demandes sur mesure pour le personnel (contrat §5). Permission `lead.view`
+ * (contrat §4 : aucune permission `custom_request.*` n'existe).
+ */
+export async function listCustomRequests(
+  actor: Actor,
+  filters?: CustomRequestFilters,
+): Promise<CustomRequestView[]> {
+  requireStaff(actor, "lead.view");
+  if (filters?.status !== undefined) {
+    assertStatus(filters.status, "status");
+  }
+
+  const rows = await dependencies.repository.list(filters);
+  return rows.map(toCustomRequestView);
+}
+
+/**
+ * Change le statut d'une demande sur mesure (contrat §5). Permission `lead.update`.
+ * Ressource non visible/introuvable : refus neutre `NOT_FOUND` (T11/T12).
+ * `RequestStatus` étant hors corpus (E28), aucune transition n'est inventée : tout statut
+ * listé est accepté, la cohérence métier restant portée par le corpus.
+ */
+export async function updateCustomRequestStatus(
+  actor: Actor,
+  id: string,
+  next: CustomRequestStatus,
+): Promise<CustomRequestView> {
+  requireStaff(actor, "lead.update");
+  assertStatus(next, "status");
+
+  const updated = await dependencies.repository.updateStatus(id, next);
+  if (!updated) {
+    throw new AppError("NOT_FOUND", "Ressource introuvable.");
+  }
+
+  return toCustomRequestView(updated);
 }

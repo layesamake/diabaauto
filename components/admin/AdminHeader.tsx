@@ -3,6 +3,19 @@ import Link from "next/link";
 import type { PermissionCode } from "@/services/permissions.service";
 
 /**
+ * Clés d'écran du back-office, utilisées pour marquer le lien courant.
+ * Le lot 5 ajoute Prospects, Demandes, Clients et Revendeurs ; Commandes, Personnel et Audit
+ * arrivent aux lots suivants (app/admin/page.tsx).
+ */
+export type AdminScreenKey =
+  | "vehicules"
+  | "referentiels"
+  | "prospects"
+  | "demandes"
+  | "clients"
+  | "revendeurs";
+
+/**
  * En-tête du back-office : titre, navigation et déconnexion.
  *
  * La navigation n'expose un écran que si l'acteur porte la permission correspondante : un membre du
@@ -20,7 +33,7 @@ export function AdminHeader({
   title: string;
   subtitle: string;
   logout?: ReactNode;
-  current?: "vehicules" | "referentiels" | null;
+  current?: AdminScreenKey | null;
 }) {
   const links = [
     { href: "/admin/vehicules", label: "Véhicules", key: "vehicules" as const, allowed: permissions.includes("vehicle.view") },
@@ -29,6 +42,30 @@ export function AdminHeader({
       label: "Référentiels",
       key: "referentiels" as const,
       allowed: permissions.includes("content.manage"),
+    },
+    {
+      href: "/admin/prospects",
+      label: "Prospects",
+      key: "prospects" as const,
+      allowed: permissions.includes("lead.view"),
+    },
+    {
+      href: "/admin/demandes",
+      label: "Demandes",
+      key: "demandes" as const,
+      allowed: permissions.includes("lead.view"),
+    },
+    {
+      href: "/admin/clients",
+      label: "Clients",
+      key: "clients" as const,
+      allowed: permissions.includes("customer.view"),
+    },
+    {
+      href: "/admin/revendeurs",
+      label: "Revendeurs",
+      key: "revendeurs" as const,
+      allowed: permissions.includes("reseller.view"),
     },
   ].filter((link) => link.allowed);
 

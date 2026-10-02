@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   configureCustomRequestDependencies,
   CustomRequestValidationError,
+  isCustomRequestStatus,
+  listCustomRequests,
   listOwnCustomRequests,
   parseCustomRequestInput,
   resetCustomRequestDependencies,
   submitCustomRequest,
   toCustomRequestView,
+  updateCustomRequestStatus,
   type CustomRequestRepository,
   type CustomRequestRow,
 } from "@/services/custom-request.service";
@@ -23,6 +26,16 @@ const staff: Actor = {
   roles: [{ code: "ADMIN", permissions: [] }],
   roleCodes: ["ADMIN"],
   permissions: [],
+};
+const crmStaff: Actor = {
+  kind: "staff",
+  profileId: "p8",
+  staffId: "s8",
+  status: "ACTIVE",
+  active: true,
+  roles: [{ code: "COMMERCIAL", permissions: ["lead.view", "lead.update"] }],
+  roleCodes: ["COMMERCIAL"],
+  permissions: ["lead.view", "lead.update"],
 };
 const customer: Actor = {
   kind: "customer",
@@ -57,13 +70,19 @@ function row(overrides: Partial<CustomRequestRow> = {}): CustomRequestRow {
 function repository(): CustomRequestRepository & {
   created: Parameters<CustomRequestRepository["create"]>[0][];
   listedFor: string[];
+  listedFilters: Parameters<CustomRequestRepository["list"]>[0][];
+  updated: { id: string; status: string }[];
 } {
   const created: Parameters<CustomRequestRepository["create"]>[0][] = [];
   const listedFor: string[] = [];
+  const listedFilters: Parameters<CustomRequestRepository["list"]>[0][] = [];
+  const updated: { id: string; status: string }[] = [];
 
   return {
     created,
     listedFor,
+    listedFilters,
+    updated,
     async create(data) {
       created.push(data);
       return row({
@@ -78,6 +97,18 @@ function repository(): CustomRequestRepository & {
     async listByCustomer(customerId) {
       listedFor.push(customerId);
       return [row({ customerId })];
+    },
+    async list(filters) {
+      listedFilters.push(filters);
+      return [row({ status: filters?.status ?? "RECEIVED" })];
+    },
+    async findById(id) {
+      return id === "missing" ? null : row({ id });
+    },
+    async updateStatus(id, status) {
+      if (id === "missing") return null;
+      updated.push({ id, status });
+      return row({ id, status });
     },
   };
 }
@@ -278,5 +309,95 @@ describe("toCustomRequestView", () => {
   it("tolerates an empty criteria object", () => {
     const view = toCustomRequestView(row({ criteriaJson: {} }));
     expect(view.criteria).toEqual({});
+  });
+});
+
+describe("isCustomRequestStatus", () => {
+  it("accepts every RequestStatus value of the corpus", () => {
+    for (const status of ["RECEIVED", "QUALIFIED", "SEARCHING", "PROPOSED", "CLOSED", "ABANDONED"]) {
+      expect(isCustomRequestStatus(status)).toBe(true);
+    }
+  });
+
+  it("rejects anything outside the corpus enum", () => {
+    expect(isCustomRequestStatus("APPROVED")).toBe(false);
+    expect(isCustomRequestStatus(42)).toBe(false);
+    expect(isCustomRequestStatus(null)).toBe(false);
+  });
+});
+
+describe("listCustomRequests (personnel)", () => {
+  it("requires the lead.view permission", async () => {
+    const repo = repository();
+    configureCustomRequestDependencies({ repository: repo });
+
+    await expect(listCustomRequests(visitor)).rejects.toThrowError();
+    await expect(listCustomRequests(customer)).rejects.toThrowError();
+    await expect(listCustomRequests(staff)).rejects.toThrowError(/refus/i);
+    resetCustomRequestDependencies();
+  });
+
+  it("passes the status filter through and projects the rows", async () => {
+    const repo = repository();
+    configureCustomRequestDependencies({ repository: repo });
+
+    const views = await listCustomRequests(crmStaff, { status: "SEARCHING" });
+
+    expect(repo.listedFilters).toEqual([{ status: "SEARCHING" }]);
+    expect(views).toHaveLength(1);
+    expect(Object.keys(views[0]).sort()).toEqual(["budgetMax", "budgetMin", "createdAt", "criteria", "id", "status"]);
+    resetCustomRequestDependencies();
+  });
+
+  it("rejects an unknown status filter", async () => {
+    const repo = repository();
+    configureCustomRequestDependencies({ repository: repo });
+
+    await expect(
+      listCustomRequests(crmStaff, { status: "NOPE" as never }),
+    ).rejects.toThrowError(CustomRequestValidationError);
+    resetCustomRequestDependencies();
+  });
+});
+
+describe("updateCustomRequestStatus (personnel)", () => {
+  it("requires the lead.update permission", async () => {
+    const repo = repository();
+    configureCustomRequestDependencies({ repository: repo });
+
+    await expect(updateCustomRequestStatus(customer, "req-1", "QUALIFIED")).rejects.toThrowError();
+    await expect(updateCustomRequestStatus(staff, "req-1", "QUALIFIED")).rejects.toThrowError(/refus/i);
+    resetCustomRequestDependencies();
+  });
+
+  it("updates the status through the repository", async () => {
+    const repo = repository();
+    configureCustomRequestDependencies({ repository: repo });
+
+    const view = await updateCustomRequestStatus(crmStaff, "req-1", "PROPOSED");
+
+    expect(repo.updated).toEqual([{ id: "req-1", status: "PROPOSED" }]);
+    expect(view.status).toBe("PROPOSED");
+    resetCustomRequestDependencies();
+  });
+
+  it("rejects an unknown status value", async () => {
+    const repo = repository();
+    configureCustomRequestDependencies({ repository: repo });
+
+    await expect(
+      updateCustomRequestStatus(crmStaff, "req-1", "DONE" as never),
+    ).rejects.toThrowError(CustomRequestValidationError);
+    resetCustomRequestDependencies();
+  });
+
+  it("returns a neutral NOT_FOUND when the request does not exist", async () => {
+    const repo = repository();
+    configureCustomRequestDependencies({ repository: repo });
+
+    await expect(updateCustomRequestStatus(crmStaff, "missing", "CLOSED")).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    resetCustomRequestDependencies();
   });
 });
