@@ -143,6 +143,16 @@ export function createVehicleMediaRepository(
     }
   }
 
+  async function updateThumbnail(id: string, thumbnailPath: string | null): Promise<MediaRow> {
+    const row = await client.vehicleMedia.update({
+      where: { id },
+      data: { thumbnailPath },
+      select: vehicleMediaSelect,
+    });
+
+    return toVehicleMediaRecord(row);
+  }
+
   async function lockVehicle(vehicleId: string): Promise<boolean> {
     // Verrou de ligne tenu jusqu'à la fin de la transaction : sérialise les ajouts de médias
     // d'un même véhicule. Hors transaction il serait relâché aussitôt, donc inutile (non utilisé ainsi).
@@ -162,6 +172,7 @@ export function createVehicleMediaRepository(
     setDisplayOrder,
     remove,
     updateFiles,
+    updateThumbnail,
     lockVehicle,
     // Transaction de premier niveau uniquement (voir `repositories/vehicle.repository.ts`).
     transaction: (fn) => prisma.$transaction(async (tx) => fn(createVehicleMediaRepository(tx))),

@@ -51,6 +51,8 @@ export type VehicleMediaRepository = {
   remove(id: string): Promise<void>;
   /** Remplace les fichiers (original + vignette) d'un média image, sans changer son identifiant. */
   updateFiles(id: string, files: { storagePath: string; thumbnailPath: string | null }): Promise<MediaRow>;
+  /** Remplace la seule vignette d'un média (affiche d'une vidéo), sans toucher au fichier principal. */
+  updateThumbnail(id: string, thumbnailPath: string | null): Promise<MediaRow>;
   /**
    * Verrouille la ligne du véhicule jusqu'à la fin de la transaction courante (`SELECT … FOR UPDATE`).
    * Sérialise les ajouts concurrents. Retourne `false` si le véhicule n'existe pas.
@@ -257,6 +259,32 @@ export async function replaceMediaFiles(
   }
 
   return mediaRepository.updateFiles(id, files);
+}
+
+/**
+ * Définit l'affiche d'une vidéo (ou la retire avec `null`).
+ *
+ * Réservé aux médias VIDEO : l'affiche d'une image, c'est sa propre vignette, produite par le
+ * pipeline d'optimisation. Le chemin reçu désigne un fichier DÉJÀ copié dans le stockage par
+ * l'appelant — ce service ne manipule aucun octet.
+ */
+export async function setVideoThumbnail(
+  actor: Actor,
+  mediaId: string,
+  thumbnailPath: string | null,
+): Promise<MediaRow> {
+  requireStaff(actor, "vehicle.edit");
+  const id = idOf(mediaId);
+
+  const record = await mediaRepository.findById(id);
+  if (!record) {
+    throw new AppError("NOT_FOUND", "Ressource introuvable.");
+  }
+  if (record.mediaType !== "VIDEO") {
+    throw new AppError("VALIDATION", "Seule une vidéo porte une affiche.");
+  }
+
+  return mediaRepository.updateThumbnail(id, thumbnailPath);
 }
 
 /**

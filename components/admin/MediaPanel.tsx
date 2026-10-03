@@ -8,6 +8,7 @@ import {
   removeMediaAction,
   reoptimizeMediaAction,
   setPrimaryMediaAction,
+  setVideoPosterAction,
 } from "@/app/admin/actions";
 import { AdminForm } from "@/components/admin/AdminForm";
 import { AdminTextField } from "@/components/admin/AdminFields";
@@ -130,10 +131,19 @@ function MediaGrid({
   thumbnails?: Map<string, string>;
   canEdit: boolean;
 }) {
+  // Photos proposables comme affiche d'une vidéo.
+  const images = media.filter((item) => item.mediaType === "IMAGE" && item.storagePath);
+
   return (
     <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
       {media.map((item) => (
-        <MediaCard key={item.id} media={item} thumbnail={thumbnails?.get(item.id)} canEdit={canEdit} />
+        <MediaCard
+          key={item.id}
+          media={item}
+          thumbnail={thumbnails?.get(item.id)}
+          images={images}
+          canEdit={canEdit}
+        />
       ))}
     </div>
   );
@@ -142,16 +152,21 @@ function MediaGrid({
 function MediaCard({
   media,
   thumbnail,
+  images,
   canEdit,
 }: {
   media: MediaRow;
   thumbnail?: string;
+  images: MediaRow[];
   canEdit: boolean;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+  // Une affiche choisie est une COPIE : son chemin ne correspond à aucune photo de la liste. On
+  // affiche donc « personnalisée » plutôt que de désigner à tort l'une des photos.
+  const [posterChoice, setPosterChoice] = useState(media.thumbnailPath ? "custom" : "");
 
   const isPrimaryImage = media.mediaType === "IMAGE" && media.visibility === "PUBLIC";
   // Vignette signée côté serveur : la route publique `/api/media` refuse un véhicule non publié.
@@ -172,6 +187,36 @@ function MediaCard({
       } else {
         setError(result.error.message);
       }
+    } catch {
+      setError("Opération échouée.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function choosePoster(value: string) {
+    if (pending) return;
+
+    const formData = new FormData();
+    formData.set("videoMediaId", media.id);
+    if (value && value !== "custom") {
+      formData.set("imageMediaId", value);
+    }
+
+    setPending(true);
+    setError("");
+    setInfo("");
+
+    try {
+      const result = await setVideoPosterAction(formData);
+      if ("error" in result) {
+        setError(result.error.message);
+        return;
+      }
+
+      setPosterChoice(value && value !== "custom" ? "custom" : "");
+      setInfo(result.data.message);
+      router.refresh();
     } catch {
       setError("Opération échouée.");
     } finally {
@@ -253,6 +298,31 @@ function MediaCard({
           {media.category ?? DOCUMENT_VISIBILITY_LABELS[media.visibility]}
         </p>
         <p className="text-[10px] text-slate-400">Ordre : {media.displayOrder}</p>
+
+        {media.mediaType === "VIDEO" && canEdit && images.length > 0 ? (
+          <label className="mt-1 block">
+            <span className="text-[10px] text-slate-500">Affiche</span>
+            <select
+              value={posterChoice}
+              disabled={pending}
+              onChange={(event) => void choosePoster(event.target.value)}
+              className="mt-0.5 w-full rounded border border-slate-300 bg-white px-1 py-1 text-[10px] text-[#071525] disabled:opacity-50"
+            >
+              <option value="">Photo principale (par défaut)</option>
+              {posterChoice === "custom" ? (
+                // Une affiche enregistrée est une copie : elle ne correspond à aucune photo de la
+                // liste. Sans cette entrée, le menu paraîtrait vide.
+                <option value="custom">Affiche choisie</option>
+              ) : null}
+              {images.map((image, index) => (
+                <option key={image.id} value={image.id}>
+                  Photo {index + 1}
+                  {image.isPrimary ? " (principale)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
 
       {/* Actions */}
