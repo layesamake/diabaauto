@@ -2,15 +2,14 @@ import { createClient } from "@supabase/supabase-js";
 import { AppError } from "@/lib/errors";
 
 /**
- * Accès au bucket Supabase « vehicle-images » — DÉPENDANCE NON EXÉCUTÉE (D15).
+ * Accès au bucket Supabase « vehicle-images ».
  *
- * Aucun projet Supabase n'est configuré dans cet environnement : les fonctions de ce module ne sont
- * donc pas exercées (ni upload signé, ni URL signée). Elles sont isolées ici pour que le reste du lot
- * L2 (référentiels, véhicule, médias, prix) reste testable sans Storage : le service de médias
- * n'enregistre que des CHEMINS déjà déposés (`storagePath`) ou des URLs externes (`externalUrl`).
+ * Fournit les opérations de stockage : URL signée de téléchargement, URL signée d'upload, upload
+ * direct via service_role, et suppression. Les images sont optimisées (WebP, redimensionnement)
+ * par `services/image-optimization.service.ts` AVANT d'arriver ici.
  *
- * Rappel doc 17 : un bucket public n'est pas protégé par RLS. Les documents privés restent dans un
- * bucket privé et sont servis par URL signée de courte durée (`STORAGE_SIGNED_URL_TTL_SECONDS`).
+ * Le bucket est privé (M09) : les documents sont servis par URL signée de courte durée
+ * (`STORAGE_SIGNED_URL_TTL_SECONDS`), via la route `/api/media/[id]`.
  */
 
 export const DEFAULT_VEHICLE_IMAGE_BUCKET = "vehicle-images";
@@ -35,6 +34,10 @@ export type VehicleStorageService = {
   readonly bucket: string;
   createSignedUrl(storagePath: string, options?: { ttlSeconds?: number }): Promise<string>;
   createSignedUploadUrl(storagePath: string): Promise<SignedUploadTarget>;
+  /** Upload direct d'un buffer dans le bucket via service_role (upsert = false). */
+  uploadFile(storagePath: string, data: Buffer, contentType: string): Promise<void>;
+  /** Supprime un fichier du bucket. Silencieux si le fichier n'existe pas. */
+  deleteFile(storagePath: string): Promise<void>;
 };
 
 /** Lit la configuration de stockage ; aucune valeur secrète n'est journalisée ni retournée à l'UI. */
@@ -113,6 +116,24 @@ export function createVehicleStorageService(
         token: data.token,
         signedUrl: data.signedUrl,
       };
+    },
+
+    async uploadFile(storagePath: string, data: Buffer, contentType: string): Promise<void> {
+      const { client, bucket } = ensureConfigured();
+      const { error } = await client.storage.from(bucket).upload(storagePath, data, {
+        contentType,
+        upsert: false,
+      });
+
+      if (error) {
+        throw new AppError("INTERNAL", "Le téléversement du fichier a échoué.");
+      }
+    },
+
+    async deleteFile(storagePath: string): Promise<void> {
+      const { client, bucket } = ensureConfigured();
+      // remove renvoie un tableau ; une erreur sur fichier inexistant est ignorée.
+      await client.storage.from(bucket).remove([storagePath]);
     },
   };
 }

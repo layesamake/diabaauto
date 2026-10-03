@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { COMMERCIAL_STATUSES, REFERENTIAL_FORM_FIELDS } from "@/components/admin/admin-view";
 import { getCurrentActor } from "@/lib/auth/session";
 import { AppError, newCorrelationId, ok, toErrorResponse, type ErrorEnvelope } from "@/lib/errors";
-import { addMedia, removeMedia, setPrimaryMedia } from "@/services/media.service";
+import { addMedia, removeMedia, reorderMedia, setPrimaryMedia } from "@/services/media.service";
+import {
+  uploadVehicleImages,
+  type UploadResult,
+} from "@/services/image-upload.service";
 import { setVehiclePrice } from "@/services/pricing.service";
 import {
   createReferential,
@@ -305,6 +309,87 @@ export async function setPrimaryMediaAction(formData: FormData): Promise<AdminAc
     await setPrimaryMedia(actor, mediaId);
     revalidatePath(VEHICLE_DETAIL_PATTERN, "page");
     return ok({ message: "Média principal désigné." });
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/**
+ * Upload groupé d'images (jusqu'à 5 par véhicule).
+ *
+ * Le `FormData` peut contenir :
+ * - `vehicleId` (requis)
+ * - `files` (File[]) — fichiers sélectionnés sur l'ordinateur
+ * - `urls` (string) — JSON array d'URLs d'images à récupérer côté serveur
+ *
+ * Chaque image est optimisée (WebP, redimensionnée) et un thumbnail est généré avant stockage.
+ * Retourne un résultat détaillé par image dans `data.results`.
+ */
+export type UploadActionState =
+  | { data: { message: string; results: UploadResult[] } }
+  | { error: AdminActionError };
+
+export async function uploadVehicleImagesAction(formData: FormData): Promise<UploadActionState> {
+  const actor = await getCurrentActor();
+  const vehicleId = requiredText(formData, "vehicleId");
+
+  // Collecter les fichiers
+  const files: File[] = [];
+  const rawFiles = formData.getAll("files");
+  for (const entry of rawFiles) {
+    if (entry instanceof File && entry.size > 0) {
+      files.push(entry);
+    }
+  }
+
+  // Collecter les URLs
+  let urls: string[] = [];
+  const rawUrls = readString(formData, "urls");
+  if (rawUrls) {
+    try {
+      const parsed = JSON.parse(rawUrls);
+      if (Array.isArray(parsed)) {
+        urls = parsed.filter((u): u is string => typeof u === "string" && u.trim().length > 0);
+      }
+    } catch {
+      return { error: { code: "VALIDATION", message: "Format d'URLs invalide." } };
+    }
+  }
+
+  if (files.length === 0 && urls.length === 0) {
+    return { error: { code: "VALIDATION", message: "Aucune image fournie." } };
+  }
+
+  try {
+    const results = await uploadVehicleImages(actor, vehicleId, { files, urls });
+    const successCount = results.filter((r) => r.ok).length;
+
+    revalidatePath(`${VEHICLE_LIST}/${vehicleId}`);
+    return {
+      data: {
+        message:
+          successCount === results.length
+            ? `${successCount} image(s) téléversée(s).`
+            : `${successCount} / ${results.length} image(s) téléversée(s). Certaines ont échoué.`,
+        results,
+      },
+    };
+  } catch (error) {
+    return failure(error) as { error: AdminActionError };
+  }
+}
+
+/** Réordonne les médias d'un véhicule ; `orderedIds` est un JSON array d'identifiants. */
+export async function reorderMediaAction(formData: FormData): Promise<AdminActionState> {
+  const actor = await getCurrentActor();
+  const vehicleId = requiredText(formData, "vehicleId");
+  const rawIds = requiredText(formData, "orderedIds");
+
+  try {
+    const orderedIds: string[] = JSON.parse(rawIds);
+    await reorderMedia(actor, vehicleId, orderedIds);
+    revalidatePath(`${VEHICLE_LIST}/${vehicleId}`);
+    return ok({ message: "Ordre des médias mis à jour." });
   } catch (error) {
     return failure(error);
   }
