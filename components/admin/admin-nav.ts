@@ -101,6 +101,13 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
         permission: "audit.view",
       },
       {
+        href: "/admin/parametres",
+        label: "Paramètres",
+        description: "Numéro WhatsApp, téléphone, e-mail et adresse affichés sur le site.",
+        icon: "parametres",
+        permission: "settings.manage",
+      },
+      {
         href: "/admin/compte",
         label: "Mon compte",
         description: "Mot de passe et préférences.",

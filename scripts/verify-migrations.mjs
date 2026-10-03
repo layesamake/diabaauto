@@ -8,7 +8,7 @@
  *   npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script
  *
  * Le script reconstruit la structure EFFECTIVE produite par les migrations
- * M01..M04 + M07 + M08 (partie structurelle) en repliant les instructions dans
+ * M01..M04 + M07 + M08 + M11 (partie structurelle) en repliant les instructions dans
  * l'ordre : CREATE TABLE, ALTER TABLE … ADD COLUMN, ADD CONSTRAINT, mais aussi
  * les RENOMMAGES (ALTER TABLE … RENAME TO, RENAME COLUMN, RENAME CONSTRAINT,
  * ALTER INDEX … RENAME TO). La structure reconstruite est comparée au schéma
@@ -43,7 +43,7 @@ const MIGRATIONS_DIR = join(ROOT, 'prisma', 'migrations');
 // strictement énumérée ci-dessous.
 const MIGRATION_DIR_RE = /^(\d{14})_(m\d{2,3}_[a-z0-9_]+)$/;
 const EXPECTED_NAMES = ['m01_identite', 'm02_referentiels', 'm03_activite_client', 'm04_journaux_audit_index', 'm05_rls_storage', 'm06_integrite_profils_auth', 'm07_crm_revendeur', 'm08_commandes'];
-const STRUCTURAL = ['m01_identite', 'm02_referentiels', 'm03_activite_client', 'm04_journaux_audit_index', 'm07_crm_revendeur', 'm08_commandes'];
+const STRUCTURAL = ['m01_identite', 'm02_referentiels', 'm03_activite_client', 'm04_journaux_audit_index', 'm07_crm_revendeur', 'm08_commandes', 'm11_parametres_site'];
 
 const failures = [];
 const notes = [];
@@ -388,16 +388,17 @@ function main() {
   const m05 = entries.find((e) => e.label === 'm05_rls_storage');
   const m07 = entries.find((e) => e.label === 'm07_crm_revendeur');
   const m08 = entries.find((e) => e.label === 'm08_commandes');
-  const rlsText = [m05, m07, m08].filter(Boolean).map((e) => splitStatements(e.sql).map(normalize).join('\n')).join('\n');
+  const m11 = entries.find((e) => e.label === 'm11_parametres_site');
+  const rlsText = [m05, m07, m08, m11].filter(Boolean).map((e) => splitStatements(e.sql).map(normalize).join('\n')).join('\n');
   if (!m05) {
     fail('M05 absente : RLS et policies non vérifiables');
   } else {
     const m05Text = normalize(m05.sql);
-    // La RLS peut être activée en M05 (tables historiques), M07 (lot 5) ou M08 (lot 6).
+    // La RLS peut être activée en M05 (tables historiques), M07 (lot 5) M08 (lot 6) ou M11 (paramètres du site).
     const tablesWithoutRls = expected.tables
       ? [...expected.tables.keys()].filter((t) => !rlsText.includes(`alter table public.${t} enable row level security`))
       : [];
-    for (const t of tablesWithoutRls) fail(`RLS non activée (M05/M07/M08) pour la table « ${t} »`);
+    for (const t of tablesWithoutRls) fail(`RLS non activée (M05/M07/M08/M11) pour la table « ${t} »`);
 
     const buckets = [...m05Text.matchAll(/insert into storage\.buckets/g)].length;
     if (buckets !== 1) fail(`M05 : INSERT INTO storage.buckets attendu une fois (trouvé ${buckets})`);

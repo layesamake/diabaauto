@@ -1,4 +1,4 @@
-import { readContactConfig } from "@/lib/config/contact";
+import { getPublicContact } from "@/services/public-contact.service";
 import { absoluteUrl } from "@/lib/seo";
 import { buildVehicleWhatsAppUrl } from "@/lib/whatsapp";
 import { fr } from "@/lib/i18n";
@@ -6,12 +6,12 @@ import { fr } from "@/lib/i18n";
 /**
  * CTA WhatsApp d'une fiche véhicule (BR-120/BR-121/BR-123).
  *
- * - le numéro est lu depuis l'environnement (`readContactConfig`), jamais écrit en dur ;
+ * - le numéro est lu depuis les réglages du back-office, à défaut depuis l'environnement (`getPublicContact`), jamais écrit en dur ;
  * - le lien est masqué si le numéro est inexploitable (`buildVehicleWhatsAppUrl` → `null`), plutôt
  *   que d'exposer un lien cassé ;
  * - le message reste une demande d'information : il n'est jamais présenté comme un devis.
  */
-export function VehicleWhatsAppCta({
+export async function VehicleWhatsAppCta({
   title,
   reference,
   slug,
@@ -22,7 +22,7 @@ export function VehicleWhatsAppCta({
   slug: string;
   priceLabel: string | null;
 }) {
-  const { whatsappNumber } = readContactConfig();
+  const { whatsappNumber } = await getPublicContact();
   const url = buildVehicleWhatsAppUrl({
     whatsappNumber,
     title,

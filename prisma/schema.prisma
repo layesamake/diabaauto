@@ -873,3 +873,21 @@ model AuditLog {
   @@index([entityType, entityId, createdAt])
   @@map("audit_logs")
 }
+
+// ---------------------------------------------------------------------------
+// Paramètres du site (BR-120, D27) — UNE seule ligne (`id = 1`, CHECK en migration M11).
+// Valeur absente (NULL) = repli sur l'environnement puis sur la valeur documentée.
+// ---------------------------------------------------------------------------
+
+model SiteSettings {
+  id             Int      @id @default(1)
+  whatsappNumber String?  @map("whatsapp_number")
+  contactPhone   String?  @map("contact_phone")
+  contactEmail   String?  @map("contact_email")
+  contactAddress String?  @map("contact_address")
+  contactCity    String?  @map("contact_city")
+  contactCountry String?  @map("contact_country")
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("site_settings")
+}

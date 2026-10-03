@@ -55,6 +55,7 @@ describe("navigation — catalogue", () => {
       "Marques et modèles",
       "Équipe",
       "Journal d'activité",
+      "Paramètres",
       "Mon compte",
     ]);
   });

@@ -49,3 +49,46 @@ export function readContactConfig(source: Record<string, string | undefined> = p
     contactCountry: readOptionalValue(source[CONTACT_ENV_KEYS.contactCountry]),
   };
 }
+
+/**
+ * Coordonnées enregistrées depuis le back-office (table `site_settings`). `null` = non renseignée :
+ * la valeur retombe alors sur l'environnement, puis, pour le WhatsApp seulement, sur la valeur documentée.
+ */
+export type StoredContact = {
+  whatsappNumber: string | null;
+  contactPhone: string | null;
+  contactEmail: string | null;
+  contactAddress: string | null;
+  contactCity: string | null;
+  contactCountry: string | null;
+};
+
+export type PublicContact = {
+  whatsappNumber: string;
+  contactPhone: string | null;
+  contactEmail: string | null;
+  contactAddress: string | null;
+  contactCity: string | null;
+  contactCountry: string | null;
+};
+
+/**
+ * Coordonnées publiques : la valeur saisie au back-office prime, l'environnement vient ensuite.
+ * `stored` peut être `null` (table absente ou illisible) : le site fonctionne alors comme avant M11.
+ */
+export function resolveContact(
+  stored: StoredContact | null,
+  source: Record<string, string | undefined> = process.env,
+): PublicContact {
+  const env = readContactConfig(source);
+  const clean = (value: string | null | undefined) => readOptionalValue(value ?? undefined);
+
+  return {
+    whatsappNumber: clean(stored?.whatsappNumber)?.replace(/\s+/g, "") ?? env.whatsappNumber,
+    contactPhone: clean(stored?.contactPhone) ?? env.contactPhone,
+    contactEmail: clean(stored?.contactEmail),
+    contactAddress: clean(stored?.contactAddress),
+    contactCity: clean(stored?.contactCity),
+    contactCountry: clean(stored?.contactCountry) ?? env.contactCountry,
+  };
+}
