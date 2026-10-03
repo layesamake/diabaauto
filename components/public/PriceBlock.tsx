@@ -21,7 +21,7 @@ export function PriceBlock({ price }: { price: CataloguePrice | null }) {
       <dl className="flex flex-col gap-2">
         <div className="flex items-baseline justify-between gap-4">
           <dt className="text-sm text-slate-600">{fr.vehicle.priceVehicle}</dt>
-          <dd className="text-xl font-semibold text-[#011D4F]">
+          <dd className="text-3xl font-bold text-[#011D4F]">
             {formatAmount(price.amount, price.currency)}
           </dd>
         </div>

@@ -13,9 +13,10 @@ import { ShareButton } from "@/components/public/ShareButton";
 import { StatusBadges, detailBadges } from "@/components/public/StatusBadges";
 import { VehicleGallery } from "@/components/public/VehicleGallery";
 import { TrackOnMount } from "@/components/analytics/TrackOnMount";
+import { VehicleKeyFacts } from "@/components/public/VehicleKeyFacts";
 import { VehicleWhatsAppCta } from "@/components/public/VehicleWhatsAppCta";
 import { VehicleGrid } from "@/components/public/VehicleGrid";
-import { formatAmount, formatMileage, formatPublishedDate, fr } from "@/lib/i18n";
+import { formatAmount, formatPublishedDate, fr } from "@/lib/i18n";
 import {
   getCatalogueVehicle,
   listSimilarVehicles,
@@ -143,7 +144,7 @@ export default async function VehiclePage({ params }: PageProps) {
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <VehicleGallery items={vehicle.media} title={vehicle.title} />
 
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-5 lg:sticky lg:top-8 lg:self-start">
           <StatusBadges badges={detailBadges(vehicle)} />
 
           <h1 className="text-2xl font-bold text-[#011D4F] md:text-3xl">{vehicle.title}</h1>
@@ -181,27 +182,36 @@ export default async function VehiclePage({ params }: PageProps) {
               />
               <ShareButton url={canonical} title={vehicle.title} />
             </div>
+            <p className="rounded-lg bg-[#f4f7fb] px-3 py-2 text-xs text-slate-600">
+              {fr.vehicle.contactReassurance}
+            </p>
           </div>
         </div>
       </div>
 
       <section className="mt-12 max-w-3xl">
-        <h2 className="text-xl font-semibold text-[#011D4F]">{fr.vehicle.summaryTitle}</h2>
-        <dl className="mt-4">
+        <h2 className="text-xl font-semibold text-[#011D4F]">{fr.vehicle.specsTitle}</h2>
+
+        <h3 className="mt-5 text-sm font-semibold uppercase tracking-wide text-slate-500">
+          {fr.vehicle.keyFactsTitle}
+        </h3>
+        <div className="mt-3">
+          <VehicleKeyFacts vehicle={vehicle} />
+        </div>
+
+        <h3 className="mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">
+          {fr.vehicle.specsMoreTitle}
+        </h3>
+        <dl className="mt-3 grid gap-x-8 sm:grid-cols-2">
           <SummaryRow label={fr.catalogue.brandLabel} value={vehicle.brandName} />
           <SummaryRow label={fr.catalogue.modelLabel} value={vehicle.modelName} />
-          <SummaryRow label={fr.common.year} value={String(vehicle.year)} />
-          <SummaryRow label={fr.catalogue.conditionLabel} value={fr.labels.condition[vehicle.condition]} />
-          {vehicle.mileage !== null ? (
-            <SummaryRow label={fr.common.mileage} value={formatMileage(vehicle.mileage)} />
-          ) : null}
-          <SummaryRow label={fr.catalogue.bodyLabel} value={vehicle.bodyTypeName} />
-          <SummaryRow label={fr.catalogue.fuelLabel} value={vehicle.fuelTypeName} />
-          <SummaryRow label={fr.catalogue.transmissionLabel} value={vehicle.transmissionTypeName} />
           <SummaryRow
             label={fr.catalogue.locationLabel}
             value={fr.labels.logisticsLocation[vehicle.logisticsLocation]}
           />
+          {vehicle.specs.map((spec) => (
+            <SummaryRow key={`${spec.label}-${spec.value}`} label={spec.label} value={spec.value} />
+          ))}
         </dl>
 
         {vehicle.description ? (
@@ -212,32 +222,21 @@ export default async function VehiclePage({ params }: PageProps) {
         ) : null}
       </section>
 
-      <section className="mt-12 max-w-3xl">
-        <h2 className="text-xl font-semibold text-[#011D4F]">{fr.vehicle.eligibilityTitle}</h2>
-        <p className="mt-3 text-sm text-slate-600">
-          {fr.labels.eligibilityStatus[vehicle.eligibilityStatus]}
-        </p>
-      </section>
+      {vehicle.eligibilityStatus === "ELIGIBLE" || vehicle.eligibilityStatus === "NOT_ELIGIBLE" ? (
+        <section className="mt-12 max-w-3xl">
+          <h2 className="text-xl font-semibold text-[#011D4F]">{fr.vehicle.eligibilityTitle}</h2>
+          <p className="mt-3 text-sm text-slate-600">
+            {fr.labels.eligibilityStatus[vehicle.eligibilityStatus]}
+          </p>
+        </section>
+      ) : null}
 
-      <section className="mt-12 max-w-3xl">
-        <h2 className="text-xl font-semibold text-[#011D4F]">{fr.vehicle.specsTitle}</h2>
-        {vehicle.specs.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-600">{fr.vehicle.specsEmpty}</p>
-        ) : (
-          <dl className="mt-4 grid gap-x-8 sm:grid-cols-2">
-            {vehicle.specs.map((spec) => (
-              <SummaryRow key={`${spec.label}-${spec.value}`} label={spec.label} value={spec.value} />
-            ))}
-          </dl>
-        )}
-      </section>
-
-      <section className="mt-12 max-w-3xl">
-        <h2 className="text-xl font-semibold text-[#011D4F]">{fr.vehicle.inspectionTitle}</h2>
-        {vehicle.inspectionOnRequest ? (
+      {vehicle.inspectionOnRequest ? (
+        <section className="mt-12 max-w-3xl">
+          <h2 className="text-xl font-semibold text-[#011D4F]">{fr.vehicle.inspectionTitle}</h2>
           <p className="mt-3 text-sm text-slate-600">{fr.vehicle.inspectionBody}</p>
-        ) : null}
-      </section>
+        </section>
+      ) : null}
 
       {similar.status === "ok" && similar.value.length > 0 ? (
         <section className="mt-12">
