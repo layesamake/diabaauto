@@ -414,6 +414,17 @@ export function createCatalogueRepository(
     return rows.map(toCatalogueVehicleRow);
   }
 
+  async function listRecent(limit: number): Promise<CatalogueVehicleRow[]> {
+    const rows = await client.vehicle.findMany({
+      where: PUBLIC_VEHICLE_WHERE,
+      select: catalogueVehicleSelect,
+      orderBy: toCatalogueOrderBy("recent"),
+      take: limit,
+    });
+
+    return rows.map(toCatalogueVehicleRow);
+  }
+
   async function listFacets(): Promise<CatalogueFacets> {
     const [brands, models, bodyTypes, fuelTypes, transmissionTypes] = await Promise.all([
       client.brand.findMany({
@@ -475,6 +486,7 @@ export function createCatalogueRepository(
     findByIds,
     listSimilar,
     listFeatured,
+    listRecent,
     listFacets,
     listPublishedSlugs,
     countPrivateDocuments,

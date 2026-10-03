@@ -170,6 +170,8 @@ export type CatalogueRepository = {
     limit: number;
   }): Promise<CatalogueVehicleRow[]>;
   listFeatured(limit: number): Promise<CatalogueVehicleRow[]>;
+  /** Derniers véhicules publiés (repli de la vitrine quand aucun n'est mis en avant). */
+  listRecent(limit: number): Promise<CatalogueVehicleRow[]>;
   listFacets(): Promise<CatalogueFacets>;
   listPublishedSlugs(): Promise<{ slug: string; publishedAt: Date | null }[]>;
   /** Nombre de documents non publics du véhicule (`PRIVATE` / `SHARE_ON_REQUEST`). */
@@ -641,7 +643,18 @@ export async function listFeaturedVehicles(
   limit: number = DEFAULT_FEATURED_LIMIT,
 ): Promise<CatalogueCard[]> {
   const bounded = parseLimit(limit, DEFAULT_FEATURED_LIMIT, MAX_FEATURED_LIMIT, "Limite de nouveautés invalide.");
-  const rows = await dependencies.repository.listFeatured(bounded);
+  const featured = await dependencies.repository.listFeatured(bounded);
+
+  // Repli : si trop peu de véhicules sont mis en avant, on complète avec les plus récents publiés,
+  // pour que la vitrine ne soit jamais vide tant qu'il y a du stock. Les mis en avant passent devant,
+  // et on évite les doublons par identifiant.
+  let rows = featured;
+  if (featured.length < bounded) {
+    const seen = new Set(featured.map((row) => row.id));
+    const recent = await dependencies.repository.listRecent(bounded);
+    rows = [...featured, ...recent.filter((row) => !seen.has(row.id))].slice(0, bounded);
+  }
+
   const now = new Date();
   const mediaConfig = defaultMediaConfig();
 
