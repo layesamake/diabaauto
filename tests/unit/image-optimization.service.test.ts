@@ -1,7 +1,11 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { MAX_FILE_SIZE_BYTES, TARGET_OPTIMIZED_BYTES } from "@/lib/media-constants";
-import { isAcceptedContentType, optimizeImage } from "@/services/image-optimization.service";
+import {
+  isAcceptedContentType,
+  isThumbnailOutdated,
+  optimizeImage,
+} from "@/services/image-optimization.service";
 
 /** Image unie : se compresse presque à rien, idéale pour tester dimensions et formats. */
 function solid(width: number, height: number) {
@@ -20,7 +24,7 @@ async function metaOf(buffer: Buffer) {
 }
 
 describe("optimizeImage — résultat", () => {
-  it("réduit une grande photo à 1920 px de large, en WebP, avec vignette 400×300", async () => {
+  it("réduit une grande photo à 1920 px de large, en WebP, avec vignette 800×600", async () => {
     const input = await solid(3000, 2000).jpeg().toBuffer();
 
     const result = await optimizeImage(input);
@@ -41,7 +45,9 @@ describe("optimizeImage — résultat", () => {
 
     const thumb = await metaOf(data.thumbnail);
     expect(thumb.format).toBe("webp");
-    expect([thumb.width, thumb.height]).toEqual([400, 300]);
+    expect([thumb.width, thumb.height]).toEqual([800, 600]);
+    // La vignette doit rester nettement plus légère que l'image pleine taille : c'est tout son intérêt.
+    expect(data.thumbSizeBytes).toBeLessThan(data.sizeBytes);
   });
 
   it("n'agrandit jamais une petite image", async () => {
@@ -164,5 +170,20 @@ describe("isAcceptedContentType", () => {
     expect(isAcceptedContentType(null)).toBe(false);
     expect(isAcceptedContentType("image/svg+xml")).toBe(false);
     expect(isAcceptedContentType("text/html")).toBe(false);
+  });
+});
+
+
+describe("isThumbnailOutdated", () => {
+  it("signale une vignette d'ancienne génération (400 px) et accepte la nouvelle (800 px)", async () => {
+    const old = await solid(400, 300).webp().toBuffer();
+    const current = await solid(800, 600).webp().toBuffer();
+
+    expect(await isThumbnailOutdated(old)).toBe(true);
+    expect(await isThumbnailOutdated(current)).toBe(false);
+  });
+
+  it("signale un contenu illisible plutôt que de garder une vignette cassée", async () => {
+    expect(await isThumbnailOutdated(Buffer.from("pas une image"))).toBe(true);
   });
 });

@@ -30,7 +30,8 @@ export function VehicleCard({
       <div className="relative aspect-[4/3] bg-[#f4f7fb]">
         <Link href={href} className="absolute inset-0 block">
           <VehiclePicture
-            url={vehicle.primaryImage?.url ?? null}
+            // Vignette (800 px) : une carte n'a pas besoin de l'image pleine taille (1920 px).
+            url={vehicle.primaryImage?.thumbnailUrl ?? vehicle.primaryImage?.url ?? null}
             alt={imageAlt}
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           />

@@ -37,6 +37,28 @@ type PageProps = { searchParams: Promise<SearchParamsRecord> };
 /** Facettes mises en cache pour la durée de la requête (une seule lecture). */
 const loadFacets = cache(async () => loadPublicData(() => listCatalogueFacets()));
 
+/**
+ * Clé stable d'un jeu de filtres : `cache` compare ses arguments par identité, et `parseCatalogueFilters`
+ * renvoie un objet neuf à chaque appel. Sans cette clé primitive, `generateMetadata` et la page
+ * seraient considérés comme deux appels distincts et rejoueraient la requête.
+ */
+function filtersKey(filters: CatalogueFilters): string {
+  return JSON.stringify(filters, Object.keys(filters).sort());
+}
+
+/**
+ * Catalogue chargé une seule fois par requête HTTP.
+ *
+ * `generateMetadata` (pour le nombre de résultats) et la page (pour la grille) demandent exactement
+ * la même liste : sans cette déduplication, chaque affichage exécutait deux fois le comptage et la
+ * recherche paginée, soit deux requêtes SQL inutiles.
+ */
+const loadCatalogue = cache(async (key: string) => {
+  const filters = JSON.parse(key) as CatalogueFilters;
+  const actor = await getCurrentActor();
+  return loadPublicData(() => listCatalogue(actor, filters));
+});
+
 export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
   const params = await searchParams;
   const read = readCatalogueFilters(params);
@@ -47,10 +69,7 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
     const parsed = parsePublicInput(() => parseCatalogueFilters(read.filters));
 
     if (parsed.status === "ok") {
-      const result = await loadPublicData(async () => {
-        const actor = await getCurrentActor();
-        return listCatalogue(actor, parsed.value);
-      });
+      const result = await loadCatalogue(filtersKey(parsed.value));
 
       if (result.status === "ok") {
         total = result.value.total;
@@ -91,7 +110,7 @@ export default async function CataloguePage({ searchParams }: PageProps) {
 
   const actor = await getCurrentActor();
   const [catalogue, favoriteState] = await Promise.all([
-    loadPublicData(() => listCatalogue(actor, filters)),
+    loadCatalogue(filtersKey(filters)),
     loadFavoriteState(actor),
   ]);
 
