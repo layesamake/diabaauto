@@ -2,10 +2,12 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma/client";
 import { translatePrismaError } from "@/lib/prisma/errors";
 import { nextVehicleSequence } from "@/lib/vehicle-reference";
+import { VEHICLE_STAGES, type VehicleStage } from "@/lib/vehicle-stage";
 import type {
   VehicleCreateData,
   VehicleDetail,
   VehicleListFilters,
+  VehicleStageCounts,
   VehicleListItem,
   VehicleListPage,
   VehicleMediaSummary,
@@ -58,6 +60,20 @@ export const vehicleListSelect = {
   featured: true,
   mileage: true,
   publishedAt: true,
+} as const;
+
+/** Image principale publique et prix standard actif : les deux conditions de mise en ligne qui varient. */
+const PRIMARY_PUBLIC_IMAGE = { mediaType: "IMAGE", isPrimary: true, visibility: "PUBLIC" } as const;
+const ACTIVE_STANDARD_PRICE = { pricingProfile: "STANDARD", isActive: true } as const;
+
+/**
+ * Sélection de la liste : les colonnes de `vehicleListSelect` et deux indicateurs. `take: 1` suffit
+ * (on ne veut qu'un oui ou un non) ; aucun média ni prix n'est renvoyé au service.
+ */
+export const vehicleListEntrySelect = {
+  ...vehicleListSelect,
+  media: { where: PRIMARY_PUBLIC_IMAGE, select: { id: true }, take: 1 },
+  prices: { where: ACTIVE_STANDARD_PRICE, select: { id: true }, take: 1 },
 } as const;
 
 /** Colonnes de la fiche d'administration (`vehicle.view` obligatoire). */
@@ -260,7 +276,37 @@ export function toVehicleDetail(row: VehicleDetailRow): VehicleDetail {
 const DEFAULT_PAGE_SIZE = 20;
 
 /** Construit le filtre `where` borné de la liste back-office. */
+/**
+ * Condition d'une étape. Disjointes : `online`, `ready` et `incomplete` excluent l'archivé et le
+ * vendu, que `sold` capte seul.
+ */
+export function toStageWhere(stage: VehicleStage): Prisma.VehicleWhereInput {
+  const live = { archivedAt: null, commercialStatus: { not: "SOLD" } } as const;
+  const readyToPublish = {
+    media: { some: PRIMARY_PUBLIC_IMAGE },
+    prices: { some: ACTIVE_STANDARD_PRICE },
+  } as const;
+
+  switch (stage) {
+    case "online":
+      return { ...live, isPublished: true };
+    case "ready":
+      return { ...live, isPublished: false, ...readyToPublish };
+    case "incomplete":
+      return { ...live, isPublished: false, NOT: readyToPublish };
+    case "sold":
+      return { commercialStatus: "SOLD" };
+  }
+}
+
 export function toVehicleWhere(filters: VehicleListFilters = {}): Prisma.VehicleWhereInput {
+  const { stage, ...base } = filters;
+  const where = toBaseVehicleWhere(base);
+
+  return stage ? { AND: [where, toStageWhere(stage)] } : where;
+}
+
+function toBaseVehicleWhere(filters: VehicleListFilters): Prisma.VehicleWhereInput {
   return {
     ...(filters.commercialStatus ? { commercialStatus: filters.commercialStatus } : {}),
     ...(filters.isPublished === undefined ? {} : { isPublished: filters.isPublished }),
@@ -300,7 +346,7 @@ export function createVehicleRepository(client: Prisma.TransactionClient = prism
     const [rows, total] = await Promise.all([
       client.vehicle.findMany({
         where,
-        select: vehicleListSelect,
+        select: vehicleListEntrySelect,
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -308,7 +354,29 @@ export function createVehicleRepository(client: Prisma.TransactionClient = prism
       client.vehicle.count({ where }),
     ]);
 
-    return { items: rows.map(toVehicleListItem), total };
+    return {
+      items: rows.map((row) => ({
+        ...toVehicleListItem(row),
+        hasPrimaryImage: row.media.length > 0,
+        hasStandardPrice: row.prices.length > 0,
+      })),
+      total,
+    };
+  }
+
+  async function countStages(filters: VehicleListFilters): Promise<VehicleStageCounts> {
+    const [all, ...perStage] = await Promise.all([
+      client.vehicle.count({ where: toVehicleWhere(filters) }),
+      ...VEHICLE_STAGES.map((stage) => client.vehicle.count({ where: toVehicleWhere({ ...filters, stage }) })),
+    ]);
+
+    return {
+      all,
+      ...(Object.fromEntries(VEHICLE_STAGES.map((stage, index) => [stage, perStage[index]])) as Record<
+        VehicleStage,
+        number
+      >),
+    };
   }
 
   async function nextReferenceSequence(year: number): Promise<number> {
@@ -442,6 +510,7 @@ export function createVehicleRepository(client: Prisma.TransactionClient = prism
     findById,
     findDetailById,
     list,
+    countStages,
     nextReferenceSequence,
     create,
     update,

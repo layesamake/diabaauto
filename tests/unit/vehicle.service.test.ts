@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { vi, beforeEach, describe, expect, it } from "vitest";
 import type { AuditLogEntry } from "@/services/audit.service";
 import {
   archiveVehicle,
@@ -120,9 +120,14 @@ function fakeVehicleRepository() {
           ...record,
           featured: false,
           mileage: null,
+          hasPrimaryImage: true,
+          hasStandardPrice: true,
         })),
         total: all.length,
       };
+    },
+    async countStages() {
+      return { all: vehicles.size, online: 0, ready: 0, incomplete: 0, sold: 0 };
     },
     async nextReferenceSequence(year) {
       return (sequences.get(year) ?? 0) + 1;
@@ -291,6 +296,30 @@ describe("vehicle service", () => {
     await expect(listVehicles(staffActor(), { pageSize: 500 })).rejects.toMatchObject({
       code: "VALIDATION",
     });
+  });
+
+  it("compte les onglets sur la recherche seule, sans l'étape ni la page", async () => {
+    await createVehicle(staffActor(), validVehicleInput({ title: "Alpha" }));
+    const spy = vi.spyOn(fake.repository, "countStages");
+
+    const result = await listVehicles(staffActor(), { search: "Alpha", stage: "ready", page: 2, pageSize: 5 });
+
+    // Sans cela, l'onglet « Prêts » afficherait 0 partout ailleurs : chaque onglet compterait dans le sien.
+    expect(spy).toHaveBeenCalledWith({ search: "Alpha" });
+    expect(result.stageCounts).toMatchObject({ all: 1 });
+  });
+
+  it("refuse une étape inconnue", async () => {
+    await expect(
+      listVehicles(staffActor(), { stage: "archived" as never }),
+    ).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
+  it("refuse la liste à qui n'a pas vehicle.view, sans compter quoi que ce soit", async () => {
+    const spy = vi.spyOn(fake.repository, "countStages");
+
+    await expect(listVehicles(staffActor(["lead.view"]), {})).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it("refuse la publication sans média principal ni prix actif, puis l'accepte", async () => {

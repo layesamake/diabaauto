@@ -5,6 +5,7 @@ import {
   buildVehicleJourney,
   isVehicleStepKey,
   PUBLICATION_CONDITIONS,
+  vehicleTodos,
   type JourneyInput,
 } from "@/services/vehicle-journey.service";
 
@@ -198,5 +199,51 @@ describe("conditions de publication — aucun manque ne doit échapper", () => {
 
     expect(journey.steps.filter((step) => step.done)).toEqual([]);
     expect(journey.canPublish).toBe(false);
+  });
+});
+
+describe("vehicleTodos — ce que montre la liste", () => {
+  const complet = { ...COMPLET.vehicle, hasPrimaryImage: true, hasStandardPrice: true };
+
+  it("ne propose rien pour un véhicule complet", () => {
+    expect(vehicleTodos(complet)).toEqual([]);
+  });
+
+  it("nomme la photo manquante et mène à l'étape Photos", () => {
+    expect(vehicleTodos({ ...complet, hasPrimaryImage: false })).toEqual([
+      { label: "Ajouter une photo", step: "photos" },
+    ]);
+  });
+
+  it("nomme le prix manquant et mène à l'étape Prix", () => {
+    expect(vehicleTodos({ ...complet, hasStandardPrice: false })).toEqual([
+      { label: "Fixer le prix", step: "prix" },
+    ]);
+  });
+
+  it("liste photo puis prix quand les deux manquent, dans l'ordre des étapes", () => {
+    expect(
+      vehicleTodos({ ...complet, hasPrimaryImage: false, hasStandardPrice: false }).map((todo) => todo.step),
+    ).toEqual(["photos", "prix"]);
+  });
+
+  it("ne contredit jamais la fiche : mêmes manques que buildVehicleJourney", () => {
+    for (const hasPrimaryImage of [true, false]) {
+      for (const hasStandardPrice of [true, false]) {
+        const todos = vehicleTodos({ ...complet, hasPrimaryImage, hasStandardPrice });
+        const journey = parcours({
+          media: hasPrimaryImage
+            ? [{ id: "md1", mediaType: "IMAGE", isPrimary: true, visibility: "PUBLIC" }]
+            : [],
+          prices: hasStandardPrice ? [{ pricingProfile: "STANDARD", isActive: true }] : [],
+          imageCount: hasPrimaryImage ? 1 : 0,
+        });
+
+        expect(todos.length === 0, `${hasPrimaryImage}/${hasStandardPrice}`).toBe(journey.canPublish);
+        for (const step of journey.steps.filter((item) => !item.done && item.key !== "mise-en-ligne")) {
+          expect(todos.map((todo) => todo.step)).toContain(step.key);
+        }
+      }
+    }
   });
 });

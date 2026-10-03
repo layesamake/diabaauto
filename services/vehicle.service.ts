@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { VEHICLE_STAGES, type VehicleStage } from "@/lib/vehicle-stage";
 import { AppError } from "@/lib/errors";
 import { createAuditWriter } from "@/repositories/audit.repository";
 import { createVehicleRepository } from "@/repositories/vehicle.repository";
@@ -95,8 +96,11 @@ export type VehicleDetail = VehicleListItem & {
   updatedAt: Date;
 };
 
+export { VEHICLE_STAGES, type VehicleStage };
+
 export type VehicleListFilters = {
   search?: string;
+  stage?: VehicleStage;
   commercialStatus?: VehicleCommercialStatus;
   isPublished?: boolean;
   brandId?: string;
@@ -104,7 +108,21 @@ export type VehicleListFilters = {
   pageSize?: number;
 };
 
-export type VehicleListPage = { items: VehicleListItem[]; total: number };
+/**
+ * Ligne de la liste : le véhicule, plus ce qui conditionne sa mise en ligne. Les deux indicateurs
+ * sont calculés en base pour les seules lignes affichées, sans rapatrier ni médias ni prix.
+ */
+export type VehicleListEntry = VehicleListItem & {
+  hasPrimaryImage: boolean;
+  hasStandardPrice: boolean;
+};
+
+export type VehicleListPage = { items: VehicleListEntry[]; total: number };
+
+/** Effectif de chaque étape (et du stock entier), pour les onglets. */
+export type VehicleStageCounts = Record<VehicleStage | "all", number>;
+
+export type VehicleListResult = VehicleListPage & { stageCounts: VehicleStageCounts };
 
 export type VehicleRecord = {
   id: string;
@@ -176,6 +194,8 @@ export type VehicleRepository = {
   findById(id: string): Promise<VehicleRecord | null>;
   findDetailById(id: string): Promise<VehicleDetail | null>;
   list(filters: VehicleListFilters): Promise<VehicleListPage>;
+  /** Effectif par étape, sur le périmètre de la recherche (sans l'étape ni la pagination). */
+  countStages(filters: VehicleListFilters): Promise<VehicleStageCounts>;
   /** Maximum existant + 1 pour l'année donnée (le service en dérive la référence). */
   nextReferenceSequence(year: number): Promise<number>;
   create(input: VehicleCreateData): Promise<VehicleRecord>;
@@ -315,11 +335,21 @@ const MAX_PAGE_SIZE = 100;
 export async function listVehicles(
   actor: Actor,
   filters?: VehicleListFilters,
-): Promise<VehicleListPage> {
+): Promise<VehicleListResult> {
   requireStaff(actor, "vehicle.view");
   const parsed = parseVehicleFilters(filters);
+  // Les onglets comptent sur le périmètre de la recherche : ni l'étape choisie ni la page n'en font partie.
+  const scope: VehicleListFilters = { ...parsed };
+  delete scope.stage;
+  delete scope.page;
+  delete scope.pageSize;
 
-  return dependencies.repository.list(parsed);
+  const [page, stageCounts] = await Promise.all([
+    dependencies.repository.list(parsed),
+    dependencies.repository.countStages(scope),
+  ]);
+
+  return { ...page, stageCounts };
 }
 
 /** Fiche d'administration ; exige `vehicle.view` et retourne `null` si la ressource n'existe pas. */
@@ -545,6 +575,7 @@ export function parseVehicleFilters(filters?: VehicleListFilters): VehicleListFi
   const result = z
     .object({
       search: z.string().trim().max(120).optional(),
+      stage: z.enum(VEHICLE_STAGES).optional(),
       commercialStatus: z.enum(["DRAFT", "AVAILABLE", "RESERVED", "SOLD", "UNAVAILABLE", "ARCHIVED"]).optional(),
       isPublished: z.boolean().optional(),
       brandId: idField.optional(),

@@ -5,6 +5,7 @@ import {
   resetWorklistCounter,
   type WorklistCounts,
 } from "@/services/admin-worklist.service";
+import { parseVehicleTab } from "@/components/admin/vehicle-list-view";
 import { isContactTab } from "@/services/contact-list.service";
 import { staffActor, visitorActor } from "@/tests/unit/support/actors";
 
@@ -158,6 +159,24 @@ describe("listWorklist — liens vers Contacts", () => {
     for (const item of versContacts) {
       const onglet = new URL(item.href, "https://exemple.test").searchParams.get("onglet");
       expect(isContactTab(onglet), item.href).toBe(true);
+    }
+  });
+});
+
+describe("listWorklist — liens vers les véhicules", () => {
+  it("n'envoie jamais vers un onglet de la liste des véhicules qui n'existe pas", async () => {
+    sert(compte({ vehiclesPublishedWithoutImage: 1, vehiclesReadyToPublish: 1 }));
+
+    const items = await listWorklist(staffActor());
+    const versVehicules = items.filter((item) => item.href.startsWith("/admin/vehicules"));
+
+    expect(versVehicules).toHaveLength(2);
+    for (const item of versVehicules) {
+      const etat = new URL(item.href, "https://exemple.test").searchParams.get("etat");
+      // Une valeur inconnue retomberait silencieusement sur « Tous » : le lien mentirait.
+      expect(etat, item.href).not.toBeNull();
+      expect(parseVehicleTab(etat), item.href).toBe(etat);
+      expect(parseVehicleTab(etat)).not.toBe("tous");
     }
   });
 });

@@ -63,16 +63,24 @@ export type JourneyInput = {
  */
 export const PUBLICATION_CONDITIONS: readonly {
   label: string;
+  /** La même chose à faire, à l'impératif, pour la colonne « Ce qu'il reste à faire » de la liste. */
+  todo: string;
   gaps: readonly string[];
   step: VehicleStepKey;
 }[] = [
   {
     label: "Marque, modèle, année, état et localisation renseignés",
+    todo: "Compléter les informations",
     gaps: ["marque", "modèle", "année", "état", "localisation"],
     step: "informations",
   },
-  { label: "Une photo principale publique", gaps: ["média image principal public"], step: "photos" },
-  { label: "Un prix standard actif", gaps: ["prix actif STANDARD"], step: "prix" },
+  {
+    label: "Une photo principale publique",
+    todo: "Ajouter une photo",
+    gaps: ["média image principal public"],
+    step: "photos",
+  },
+  { label: "Un prix standard actif", todo: "Fixer le prix", gaps: ["prix actif STANDARD"], step: "prix" },
 ];
 
 const STEP_KEYS: readonly VehicleStepKey[] = ["informations", "photos", "prix", "mise-en-ligne"];
@@ -151,4 +159,29 @@ export function buildVehicleJourney(input: JourneyInput): VehicleJourney {
     canPublish: gaps.length === 0,
     defaultStep: premiereInachevee?.key ?? "mise-en-ligne",
   };
+}
+
+/** Une chose à faire sur un véhicule, avec l'étape de la fiche qui la règle. */
+export type VehicleTodo = { label: string; step: VehicleStepKey };
+
+/**
+ * Ce qu'il reste à faire pour qu'un véhicule soit publiable, depuis la LISTE (où l'on ne charge ni
+ * médias ni prix, seulement deux indicateurs). Passe par `publicationGaps`, comme la fiche : liste
+ * et fiche ne peuvent donc pas se contredire.
+ */
+export function vehicleTodos(
+  entry: Pick<
+    VehicleRecord,
+    "brandId" | "modelId" | "year" | "condition" | "logisticsLocation"
+  > & { hasPrimaryImage: boolean; hasStandardPrice: boolean },
+): VehicleTodo[] {
+  const gaps = publicationGaps(
+    entry,
+    entry.hasPrimaryImage ? [{ id: "", mediaType: "IMAGE", isPrimary: true, visibility: "PUBLIC" }] : [],
+    entry.hasStandardPrice ? [{ pricingProfile: "STANDARD", isActive: true }] : [],
+  );
+
+  return PUBLICATION_CONDITIONS.filter((condition) =>
+    gaps.some((gap) => condition.gaps.includes(gap)),
+  ).map((condition) => ({ label: condition.todo, step: condition.step }));
 }
