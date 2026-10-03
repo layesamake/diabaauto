@@ -1,8 +1,13 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
+  DEMO_ASSETS_DIR,
   DEMO_BRANDS,
   DEMO_REFERENCE_PREFIX,
   DEMO_TITLE_MARKER,
+  DEMO_VEHICLE_IMAGES,
   DEMO_VEHICLES,
 } from "@/prisma/seed-demo-data";
 import { assertDemoDataIsIdentified } from "@/prisma/seed-demo";
@@ -47,5 +52,36 @@ describe("jeu de données de démonstration", () => {
     const locations = new Set(DEMO_VEHICLES.map((vehicle) => vehicle.logisticsLocation));
     expect(locations.has("CHINA")).toBe(true);
     expect(locations.has("SENEGAL")).toBe(true);
+  });
+});
+
+describe("images de démonstration", () => {
+  it("couvre chaque véhicule, avec exactement une image principale et au plus 5 images", () => {
+    const refs = new Set(DEMO_VEHICLES.map((vehicle) => vehicle.reference));
+    const covered = new Set(DEMO_VEHICLE_IMAGES.map((entry) => entry.reference));
+
+    expect(covered).toEqual(refs);
+
+    for (const entry of DEMO_VEHICLE_IMAGES) {
+      expect(refs.has(entry.reference), entry.reference).toBe(true);
+      expect(entry.images.length, entry.reference).toBeGreaterThan(0);
+      expect(entry.images.length, entry.reference).toBeLessThanOrEqual(5);
+      expect(entry.images.filter((image) => image.isPrimary).length, entry.reference).toBe(1);
+
+      const orders = entry.images.map((image) => image.order);
+      expect(new Set(orders).size, entry.reference).toBe(orders.length);
+    }
+  });
+
+  it("chaque fichier image est versionné sous prisma/demo-assets/ et identifié comme fictif", () => {
+    const baseDir = fileURLToPath(new URL(`../../prisma/${DEMO_ASSETS_DIR}/`, import.meta.url));
+
+    for (const entry of DEMO_VEHICLE_IMAGES) {
+      // Le fichier commence par la référence (donc le dossier porte la référence DEMO-…).
+      expect(entry.images.every((image) => image.file.startsWith(`${entry.reference}/`)), entry.reference).toBe(true);
+      for (const image of entry.images) {
+        expect(existsSync(join(baseDir, image.file)), image.file).toBe(true);
+      }
+    }
   });
 });

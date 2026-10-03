@@ -16,12 +16,17 @@
  * Exécution : `npm run seed:demo` (après `npm run prisma:migrate:deploy` et `npm run seed`).
  */
 
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { PrismaClient, type Prisma } from "@prisma/client";
 import { assertNonProductionDatabase, fail, loadLocalEnv, requireEnv } from "../scripts/database-guard";
 import {
+  DEMO_ASSETS_DIR,
   DEMO_BRANDS,
   DEMO_REFERENCE_PREFIX,
   DEMO_TITLE_MARKER,
+  DEMO_VEHICLE_IMAGES,
   DEMO_VEHICLES,
 } from "./seed-demo-data";
 
@@ -64,10 +69,83 @@ async function resolveReferentialIds(prisma: PrismaClient) {
   };
 }
 
+/** Bucket privé des images de véhicule (identique à l'application). */
+const DEMO_IMAGE_BUCKET = process.env.SUPABASE_BUCKET_VEHICLE_IMAGES?.trim() || "vehicle-images";
+
+/**
+ * Client Storage pour le seed, ou `null` si la configuration manque. Le seed des véhicules reste
+ * possible sans Storage : seules les images sont alors ignorées, avec un message explicite.
+ */
+function resolveDemoStorage(): { client: SupabaseClient; bucket: string } | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!url || !serviceRoleKey) {
+    return null;
+  }
+
+  return {
+    client: createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } }),
+    bucket: DEMO_IMAGE_BUCKET,
+  };
+}
+
+/**
+ * Attache les images de démonstration à un véhicule — UNIQUEMENT s'il n'en a aucune, pour ne jamais
+ * écraser des images saisies à la main depuis le back-office. Idempotent : un deuxième passage ne
+ * recrée rien (le véhicule a désormais des images). Retourne le nombre d'images ajoutées.
+ */
+async function attachDemoImages(
+  prisma: PrismaClient,
+  storage: { client: SupabaseClient; bucket: string },
+  vehicleId: string,
+  reference: string,
+): Promise<number> {
+  const manifest = DEMO_VEHICLE_IMAGES.find((entry) => entry.reference === reference);
+  if (!manifest) {
+    return 0;
+  }
+
+  const existing = await prisma.vehicleMedia.count({ where: { vehicleId } });
+  if (existing > 0) {
+    return 0;
+  }
+
+  let added = 0;
+  for (const image of manifest.images) {
+    const storagePath = `demo/${image.file}`;
+    const fileUrl = new URL(`./${DEMO_ASSETS_DIR}/${image.file}`, import.meta.url);
+    const buffer = await readFile(fileURLToPath(fileUrl));
+
+    const { error } = await storage.client.storage
+      .from(storage.bucket)
+      .upload(storagePath, buffer, { contentType: "image/webp", upsert: true });
+    if (error) {
+      throw new Error(`Téléversement de l'image de démonstration « ${storagePath} » échoué : ${error.message}`);
+    }
+
+    await prisma.vehicleMedia.create({
+      data: {
+        vehicleId,
+        mediaType: "IMAGE",
+        storagePath,
+        category: "gallery",
+        displayOrder: image.order,
+        isPrimary: image.isPrimary,
+        visibility: "PUBLIC",
+      },
+    });
+    added += 1;
+  }
+
+  return added;
+}
+
 export async function seedDemo(prisma: PrismaClient): Promise<void> {
   assertDemoDataIsIdentified();
 
   const { bodyTypeIdByCode, fuelTypeIdByCode, transmissionTypeIdByCode } = await resolveReferentialIds(prisma);
+  const storage = resolveDemoStorage();
+  let imagesAdded = 0;
 
   // 1. Marques et modèles de démonstration.
   for (const brand of DEMO_BRANDS) {
@@ -148,6 +226,20 @@ export async function seedDemo(prisma: PrismaClient): Promise<void> {
     } else {
       await prisma.vehiclePrice.create({ data: { vehicleId: vehicleRow.id, ...price } });
     }
+
+    // 3. Images de démonstration (si le Storage est configuré, et seulement pour un véhicule sans image).
+    if (storage) {
+      imagesAdded += await attachDemoImages(prisma, storage, vehicleRow.id, vehicle.reference);
+    }
+  }
+
+  if (!storage) {
+    console.warn(
+      "[seed:demo] Storage non configuré (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY absents) : " +
+        "véhicules créés SANS image. Renseignez ces variables puis relancez pour téléverser les images.",
+    );
+  } else {
+    console.log(`[seed:demo] ${imagesAdded} image(s) de démonstration téléversée(s) et attachée(s).`);
   }
 }
 
