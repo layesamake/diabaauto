@@ -54,6 +54,7 @@ describe("navigation — catalogue", () => {
     expect(reglages?.entries.map((entry) => entry.label)).toEqual([
       "Marques et modèles",
       "Équipe",
+      "Journal d'activité",
       "Mon compte",
     ]);
   });

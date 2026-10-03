@@ -94,6 +94,13 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
         permission: "user.manage",
       },
       {
+        href: "/admin/audit",
+        label: "Journal d'activité",
+        description: "Qui a fait quoi, sur quoi, quand et pourquoi.",
+        icon: "journal",
+        permission: "audit.view",
+      },
+      {
         href: "/admin/compte",
         label: "Mon compte",
         description: "Mot de passe et préférences.",
