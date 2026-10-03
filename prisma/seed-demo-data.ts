@@ -147,3 +147,37 @@ export const DEMO_VEHICLES: readonly DemoVehicleSeed[] = [
     seats: 5,
   },
 ];
+
+/**
+ * Images de démonstration attachées aux véhicules fictifs.
+ *
+ * Les fichiers sont versionnés sous `prisma/demo-assets/<reference>/<n>.webp` et portent tous la
+ * mention « données fictives » incrustée : aucune photo réelle, aucune marque réelle. Le seed
+ * (`prisma/seed-demo.ts`) les téléverse dans le bucket privé `vehicle-images` et crée les lignes
+ * `vehicle_media` correspondantes, UNIQUEMENT pour les véhicules qui n'ont encore aucune image : il
+ * ne touche jamais des images saisies à la main depuis le back-office.
+ */
+export type DemoVehicleImageSeed = {
+  /** Chemin relatif à `prisma/demo-assets/`. */
+  file: string;
+  order: number;
+  isPrimary: boolean;
+  alt: string;
+};
+
+export type DemoVehicleImagesSeed = {
+  reference: string;
+  images: readonly DemoVehicleImageSeed[];
+};
+
+/** Dossier (relatif à `prisma/`) où sont versionnées les images de démonstration. */
+export const DEMO_ASSETS_DIR = "demo-assets";
+
+/** Deux vues par véhicule : une principale (avant) et une secondaire (profil). */
+export const DEMO_VEHICLE_IMAGES: readonly DemoVehicleImagesSeed[] = DEMO_VEHICLES.map((vehicle) => ({
+  reference: vehicle.reference,
+  images: [
+    { file: `${vehicle.reference}/1.webp`, order: 0, isPrimary: true, alt: "Vue avant (démonstration)" },
+    { file: `${vehicle.reference}/2.webp`, order: 1, isPrimary: false, alt: "Vue de profil (démonstration)" },
+  ],
+}));
