@@ -204,6 +204,9 @@ export function createFakeCatalogueRepository(
     async listFeatured(limit) {
       return rows.filter((row) => row.commercialStatus !== "SOLD").slice(0, limit);
     },
+    async listRecent(limit) {
+      return rows.filter((row) => row.commercialStatus !== "SOLD").slice(0, limit);
+    },
 
     async listFacets() {
       return input.facets ?? catalogueFacets();

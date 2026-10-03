@@ -568,6 +568,40 @@ describe("getCatalogueVehicle, similaires et nouveautés", () => {
     resetCatalogueDependencies();
   });
 
+  it("complète la vitrine avec les véhicules récents quand trop peu sont mis en avant, sans doublon", async () => {
+    const featuredRow = catalogueRow({ id: VEHICLE_ONE, slug: "mis-en-avant", reference: "DBC-FEAT-0001" });
+    const recentA = catalogueRow({ id: VEHICLE_ONE, slug: "mis-en-avant", reference: "DBC-FEAT-0001" });
+    const recentB = catalogueRow({ id: VEHICLE_TWO, slug: "recent-b", reference: "DBC-REC-0002" });
+    const recentC = catalogueRow({
+      id: "88888888-8888-4888-8888-888888888888",
+      slug: "recent-c",
+      reference: "DBC-REC-0003",
+    });
+
+    const base = createFakeCatalogueRepository({ rows: [] });
+    configureCatalogueDependencies({
+      repository: {
+        ...base,
+        async listFeatured() {
+          return [featuredRow];
+        },
+        async listRecent() {
+          return [recentA, recentB, recentC];
+        },
+      },
+    });
+
+    const cards = await listFeaturedVehicles(visitorActor, 3);
+
+    // Le véhicule mis en avant passe en premier et n'apparaît qu'une fois.
+    expect(cards.map((card) => card.id)).toEqual([
+      VEHICLE_ONE,
+      VEHICLE_TWO,
+      "88888888-8888-4888-8888-888888888888",
+    ]);
+    resetCatalogueDependencies();
+  });
+
   it("expose les facettes et les slugs publiés sans jamais vendre un véhicule SOLD", async () => {
     const fake = createFakeCatalogueRepository({
       slugs: [{ slug: "byd-seal", publishedAt: new Date("2026-09-01T00:00:00.000Z") }],
