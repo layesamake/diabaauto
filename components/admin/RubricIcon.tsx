@@ -107,6 +107,14 @@ const PATHS: Record<RubricIconName, ReactNode> = {
       <path d="M15 9.5h3.5M15 13.5h3.5" />
     </>
   ),
+  // Le journal d'activité : une feuille et ses lignes.
+  journal: (
+    <>
+      <path d="M6 3.5h9l3.5 3.5v13.5H6z" />
+      <path d="M14.5 3.8V7.5H18" />
+      <path d="M9 12h6M9 15.5h6" />
+    </>
+  ),
   // Mon compte : un cadenas.
   compte: (
     <>
