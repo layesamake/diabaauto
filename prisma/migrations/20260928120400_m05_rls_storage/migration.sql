@@ -92,7 +92,7 @@ GRANT EXECUTE ON FUNCTION public.current_is_admin() TO anon, authenticated;
 -- Création idempotente du profil métier à l'inscription.
 -- IMPORTANT : user_type et status sont FIXÉS par cette fonction ('CUSTOMER',
 -- 'ACTIVE') et ne sont JAMAIS lus depuis raw_user_meta_data, qui est éditable
--- par l'utilisateur (doc 11, dev.md §6). L'attribution STAFF/ADMIN est un acte
+-- par l'utilisateur (doc 11, CLAUDE.md §6). L'attribution STAFF/ADMIN est un acte
 -- serveur séparé (commande d'amorçage, décision D04).
 CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
 RETURNS trigger
@@ -340,7 +340,7 @@ CREATE POLICY saved_searches_delete_own ON public.saved_searches
 -- ----------------------------------------------------------------------------
 -- 8. Prospects, commandes et demandes : LECTURE de ses propres lignes uniquement.
 --    Aucune policy INSERT/UPDATE/DELETE client : l'écriture passe par le serveur
---    (enveloppe de service, doc 10 / dev.md §6).
+--    (enveloppe de service, doc 10 / CLAUDE.md §6).
 -- ----------------------------------------------------------------------------
 GRANT SELECT ON public.leads           TO authenticated;
 GRANT SELECT ON public.orders          TO authenticated;

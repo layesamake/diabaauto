@@ -6,7 +6,7 @@
  * Seuls les champs personnels sont envoyés (`firstName`, `lastName`, `email`, `password`,
  * `confirmPassword`). Le domaine privilégié (`userType`, `status`, `resellerStatus`, `roleId`) n'est ni
  * proposé à l'écran ni lu par la Server Action : un utilisateur ne peut pas se déclarer STAFF ou
- * Revendeur approuvé (doc 11, dev.md §5).
+ * Revendeur approuvé (doc 11, CLAUDE.md §5).
  */
 
 import Link from "next/link";

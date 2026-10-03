@@ -34,7 +34,7 @@ import {
 /**
  * Server Actions du back-office (lot L2).
  *
- * Ordre imposé (dev.md §6) : la session est résolue côté serveur par `getCurrentActor()`, puis le
+ * Ordre imposé (CLAUDE.md §6) : la session est résolue côté serveur par `getCurrentActor()`, puis le
  * service correspondant applique, dans l'ordre, le statut du compte, la permission et les règles
  * métier. Les actions ne contiennent AUCUNE règle métier et ne lisent AUCUNE autorisation depuis le
  * formulaire : masquer un bouton ne protège rien, le service est le seul point d'entrée réel.

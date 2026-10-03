@@ -11,7 +11,7 @@ import { ProfileValidationError, updateOwnCustomerProfile } from "@/services/pro
 /**
  * Server Actions de My Diaba Auto.
  *
- * Ordre imposé (dev.md §6) : la session est résolue côté serveur par `getCurrentActor()`, puis
+ * Ordre imposé (CLAUDE.md §6) : la session est résolue côté serveur par `getCurrentActor()`, puis
  * `updateOwnCustomerProfile` applique le statut du compte, la permission et la propriété avant toute
  * validation et écriture. Masquer un champ dans le formulaire ne protège rien : ces gardes sont le
  * seul point d'entrée réel.

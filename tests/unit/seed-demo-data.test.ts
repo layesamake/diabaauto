@@ -8,7 +8,7 @@ import {
 import { assertDemoDataIsIdentified } from "@/prisma/seed-demo";
 
 /**
- * Garde-fou de la règle `dev.md` §9 : « Utilise des données fictives uniquement pour le développement
+ * Garde-fou de la règle `CLAUDE.md` §9 : « Utilise des données fictives uniquement pour le développement
  * et les tests, en les identifiant clairement ». Ces tests échouent si une donnée de démonstration
  * devient indiscernable d'une donnée réelle.
  */

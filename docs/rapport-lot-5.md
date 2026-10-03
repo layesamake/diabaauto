@@ -1,6 +1,6 @@
 # Rapport de lot 5 — Approbation Revendeur, tarification et CRM
 
-**Lot** : `dev.md` §11 lot 5 — « Approbation Revendeur, tarification et CRM » (les commandes relèvent du lot 6).
+**Lot** : `CLAUDE.md` §11 lot 5 — « Approbation Revendeur, tarification et CRM » (les commandes relèvent du lot 6).
 **État** : livré et vérifié sur la base Supabase réelle.
 **Contrat** : `docs/contrat-lot-5.md` (gelé avant tout développement).
 

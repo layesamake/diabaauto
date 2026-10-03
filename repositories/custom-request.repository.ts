@@ -14,7 +14,7 @@ import type {
  * Une seule `select` explicite : elle ne contient que les colonnes nécessaires à la projection du
  * service. L'écriture passe exclusivement par ce repository (service_role via Prisma) — la RLS en
  * base n'autorise qu'un SELECT de ses propres lignes pour un client authentifié, aucun INSERT direct
- * côté client (dev.md §6).
+ * côté client (CLAUDE.md §6).
  *
  * Périmètre : `custom_vehicle_requests` (table renommée), `create`, `listByCustomer`, ainsi que les
  * lectures/écritures du personnel (`list`, `findById`, `updateStatus`). Le schéma Prisma est la

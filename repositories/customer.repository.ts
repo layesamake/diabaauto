@@ -3,7 +3,7 @@ import type { ResellerStatus } from "@/services/pricing.service";
 import type { CustomerProfileRepository, CustomerProfileUpdate } from "@/services/profile.service";
 
 /**
- * Accès aux données du profil client (My Diaba Auto) — dev.md §7 :
+ * Accès aux données du profil client (My Diaba Auto) — CLAUDE.md §7 :
  * « Retourner des objets explicitement sélectionnés selon l'acteur. Éviter de sérialiser un modèle
  * Prisma complet. »
  *

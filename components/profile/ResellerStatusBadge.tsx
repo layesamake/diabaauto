@@ -10,7 +10,7 @@ const toneClasses: Record<string, string> = {
 
 /**
  * Statut Revendeur en lecture seule. Le libellé est purement descriptif : aucune promesse
- * commerciale ni aucune condition tarifaire n'est affichée (dev.md §5 et §8).
+ * commerciale ni aucune condition tarifaire n'est affichée (CLAUDE.md §5 et §8).
  */
 export function ResellerStatusBadge({ status }: { status: string }) {
   const view = describeResellerStatus(status);

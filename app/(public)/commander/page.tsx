@@ -7,15 +7,15 @@ import { customRequestMessages as msg } from "@/lib/i18n/custom-request.fr";
 import { readOwnCustomerProfile } from "@/services/profile.service";
 
 /**
- * `/commander` — Demande personnalisée (contrat lot 4 §2 Sous-agent C, dev.md §4).
+ * `/commander` — Demande personnalisée (contrat lot 4 §2 Sous-agent C, CLAUDE.md §4).
  *
  * Accessible sans session. Si le client est connecté, les coordonnées sont pré-remplies en lecture
  * seule depuis le profil serveur (`readOwnCustomerProfile`) : aucun champ modifiable redondant avec
- * My Diaba Auto. La confirmation que la demande ne vaut ni réservation ni commande (dev.md §1) est
+ * My Diaba Auto. La confirmation que la demande ne vaut ni réservation ni commande (CLAUDE.md §1) est
  * affichée de façon visible.
  *
  * `force-dynamic` : le contenu dépend de la session, jamais d'un cache partagé entre visiteurs et
- * clients (dev.md §9).
+ * clients (CLAUDE.md §9).
  */
 export const dynamic = "force-dynamic";
 

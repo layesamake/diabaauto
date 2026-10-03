@@ -66,7 +66,7 @@ const STAFF_ACTIONS = STAFF_ACCOUNT_STATUSES;
 /** Un rôle attribuable, lu depuis la table `roles` (aucune valeur inventée). */
 export type StaffRoleOption = { code: string; name: string };
 
-/** Projection publique : jamais `profileId`, ni `authUserId` (dev.md §7). */
+/** Projection publique : jamais `profileId`, ni `authUserId` (CLAUDE.md §7). */
 export type StaffAccountView = {
   staffId: string;
   email: string | null;

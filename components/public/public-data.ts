@@ -10,7 +10,7 @@ import { isAppError } from "@/lib/errors";
  * - `invalid` : l'entrée (filtres d'URL) a été refusée par le service (`AppError VALIDATION`) ;
  * - `unavailable` : dépendance indisponible (base de données, réseau) ou erreur inattendue.
  *
- * Le détail de l'erreur n'est jamais exposé à l'écran (dev.md §6).
+ * Le détail de l'erreur n'est jamais exposé à l'écran (CLAUDE.md §6).
  */
 export type PublicData<T> =
   | { status: "ok"; value: T }

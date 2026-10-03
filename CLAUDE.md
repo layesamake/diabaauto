@@ -1,6 +1,6 @@
 # Diaba Auto — Instructions de développement pour l’IA
 
-Ce fichier guide l’agent qui développe Diaba Auto. Il est destiné à être placé à la racine du dépôt de l’application sous le nom `CLAUDE.md`. Il complète les spécifications produit et techniques ; il ne les remplace pas.
+Ce fichier guide l’agent qui développe Diaba Auto. Placé à la racine du dépôt, il est chargé automatiquement au début de chaque session. Il complète les spécifications produit et techniques ; il ne les remplace pas.
 
 ## 1. Mission
 

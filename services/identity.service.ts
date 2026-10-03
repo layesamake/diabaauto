@@ -7,7 +7,7 @@ import { AppError } from "@/lib/errors";
  *
  * Supabase Auth reste la seule source d'identité : aucune table métier ne duplique le mot de passe.
  * Ce service relie une identité Auth à son profil métier de façon **idempotente** et ne dérive
- * JAMAIS `userType`, `status` ou `resellerStatus` d'une donnée fournie par le navigateur (dev.md §5-§6).
+ * JAMAIS `userType`, `status` ou `resellerStatus` d'une donnée fournie par le navigateur (CLAUDE.md §5-§6).
  *
  * Statut de compte (contrat canonique §4.1) : tout statut ≠ `ACTIVE` (`SUSPENDED` *ou* `DISABLED`)
  * est traité comme non authentifié, exactement comme l'ancien `SUSPENDED`.

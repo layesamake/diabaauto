@@ -8,7 +8,7 @@ import type { Actor } from "@/services/identity.service";
  *
  * Invariants tenus par ce module :
  * - la cible (`customerId`) vient toujours de l'acteur résolu côté serveur (`requireCustomer`),
- *   jamais d'un identifiant transmis par le formulaire ou l'URL (dev.md §6, contrat §1) ;
+ *   jamais d'un identifiant transmis par le formulaire ou l'URL (CLAUDE.md §6, contrat §1) ;
  * - un compte suspendu est traité comme non authentifié pour toute mutation (`requireCustomer`
  *   échoue déjà pour `visitor` ET `suspended` via `requireAuthenticated`) ;
  * - ajout/retrait/fusion sont idempotents côté repository (`upsert` / `deleteMany` / `createMany

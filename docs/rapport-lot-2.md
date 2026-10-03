@@ -1,6 +1,6 @@
 # Rapport de lot — « Authentification, profils, permissions et audit »
 
-> Lot nommé « lot 2 » par `dev.md` §11 et « Lot 1 — Identité et sécurité » par `docs/15_Roadmap_plan_developpement.docx` (décision D16 : le contenu prime sur le numéro).
+> Lot nommé « lot 2 » par `CLAUDE.md` §11 et « Lot 1 — Identité et sécurité » par `docs/15_Roadmap_plan_developpement.docx` (décision D16 : le contenu prime sur le numéro).
 > Date du rapport : 2026-09-28. Dépôt : `/opt/data/projects/diabacar`.
 
 ## 1. Fonctionnalités désormais utilisables

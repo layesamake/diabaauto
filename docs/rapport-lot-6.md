@@ -1,6 +1,6 @@
 # Rapport de lot 6 — Commandes, disponibilité et suivi logistique
 
-> Référence : `dev.md` §11 lot 6. Corpus faisant foi : génération courante `docs/` (doc 03 §12-13 et §15, doc 08 §7, doc 09 §1 §5-7 §10, doc 10 §5 §8 §10, doc 12, doc 14 §4-5).
+> Référence : `CLAUDE.md` §11 lot 6. Corpus faisant foi : génération courante `docs/` (doc 03 §12-13 et §15, doc 08 §7, doc 09 §1 §5-7 §10, doc 10 §5 §8 §10, doc 12, doc 14 §4-5).
 > Contrat gelé : `docs/contrat-lot-6.md`. Décisions : `docs/decisions.md` T43-T46.
 
 ## 1. Ce qui est livré

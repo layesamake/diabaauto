@@ -20,7 +20,7 @@ import type { Actor } from "@/services/identity.service";
  * - `budgetMin <= budgetMax` lorsque les deux sont fournis ; au moins un critère (marque, modèle ou
  *   remarque) est exigé — une demande vide n'a pas de sens métier ;
  * - `listOwnCustomRequests` ne retourne jamais `contactName`/`contactPhone`/`customerId` : seules les
- *   données utiles à l'affichage personnel sont projetées (dev.md §7).
+ *   données utiles à l'affichage personnel sont projetées (CLAUDE.md §7).
  *
  * Le service ne connaît ni Prisma ni le nom des tables : il reçoit un repository (port), comme
  * `services/profile.service.ts` / `services/catalogue.service.ts`.
@@ -266,7 +266,7 @@ export async function submitCustomRequest(actor: Actor, input: unknown): Promise
   return { id: created.id };
 }
 
-/** Liste des demandes du client connecté. Garde `requireCustomer` (dev.md §6, étapes 1-2). */
+/** Liste des demandes du client connecté. Garde `requireCustomer` (CLAUDE.md §6, étapes 1-2). */
 export async function listOwnCustomRequests(actor: Actor): Promise<CustomRequestView[]> {
   const customer = requireCustomer(actor);
   const rows = await dependencies.repository.listByCustomer(customer.customerId);

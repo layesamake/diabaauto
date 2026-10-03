@@ -1,6 +1,6 @@
 # Rapport de lot — « My Diaba Auto : favoris, recherches enregistrées, demande personnalisée »
 
-> Lot nommé « lot 4 » par `dev.md` §11. Couvre favoris (visiteur + client), recherches enregistrées
+> Lot nommé « lot 4 » par `CLAUDE.md` §11. Couvre favoris (visiteur + client), recherches enregistrées
 > et demande personnalisée (`/commander`), ainsi que leur surface dans My Diaba Auto.
 > Date du rapport : 2026-10-02. Dépôt : `/opt/data/projects/diabacar`.
 > Exécution : un agent orchestrateur a figé le contrat (`docs/contrat-lot-4.md`), posé les décisions
@@ -134,14 +134,14 @@ liste). L'orchestrateur a ensuite réalisé l'intégration prévue au contrat §
   rien (aucune infrastructure e-mail disponible) — limite déjà actée au contrat (T35), à lever
   explicitement avant toute communication commerciale sur cette fonctionnalité.
 - **Hors périmètre du lot, comme prévu (T37)** : aucune nouvelle permission ni route back-office pour
-  consulter/qualifier les demandes personnalisées et prospects (prévu au lot CRM, `dev.md` §11 point 5).
+  consulter/qualifier les demandes personnalisées et prospects (prévu au lot CRM, `CLAUDE.md` §11 point 5).
 
 ## 5. Suite
 
 1. **Fournir une base non productive** : c'est le seul moyen de valider en conditions réelles les trois
    fonctionnalités de ce lot (fusion de favoris, récupération d'une recherche, soumission et lecture
    d'une demande personnalisée, RLS).
-2. **Lot CRM** (`dev.md` §11 point 5) : back-office de qualification des demandes personnalisées et
+2. **Lot CRM** (`CLAUDE.md` §11 point 5) : back-office de qualification des demandes personnalisées et
    prospects, aujourd'hui uniquement visibles par leur propriétaire.
 3. **Infrastructure de notification** : si l'option « être averti » des recherches enregistrées doit un
    jour déclencher un envoi réel, une décision produit et une infrastructure e-mail restent à poser.

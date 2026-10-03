@@ -21,7 +21,7 @@ import type {
  * `vehicleSelect` est la sélection d'ADMINISTRATION (back-office). `publicVehicleSelect` est la
  * sélection PUBLIQUE : elle n'expose aucune donnée d'approvisionnement (`supplier_reference`,
  * `supplier_name`, `source_type`, `source_url`) ni coût, afin qu'aucune requête publique ne puisse
- * les faire fuiter même si le modèle Prisma évolue (dev.md §7).
+ * les faire fuiter même si le modèle Prisma évolue (CLAUDE.md §7).
  */
 
 /** Colonnes d'administration du véhicule (back-office habilité). */

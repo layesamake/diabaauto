@@ -2,7 +2,7 @@ import { z } from "zod";
 import { defaultRateLimitRules, type RateLimitRules } from "@/services/rate-limit.service";
 
 /**
- * Variables d'environnement (dev.md §10 : « préparer un .env.example sans valeurs sensibles et
+ * Variables d'environnement (CLAUDE.md §10 : « préparer un .env.example sans valeurs sensibles et
  * documenter le rôle de chaque variable réellement utilisée »).
  *
  * Aucune valeur n'est jamais affichée ni journalisée : les erreurs ne citent que des NOMS de variables.
@@ -73,7 +73,7 @@ export function isProductionEnvironment(env: Pick<ServerEnv, "APP_ENV">): boolea
 }
 
 /**
- * Garde-fou exigé par les documents 13 / 16 et dev.md §10 : aucune migration ni écriture ne doit viser
+ * Garde-fou exigé par les documents 13 / 16 et CLAUDE.md §10 : aucune migration ni écriture ne doit viser
  * la base de production sans autorisation explicite.
  */
 export function assertProductionDatabaseAllowed(env: ServerEnv): void {

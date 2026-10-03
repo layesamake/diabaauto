@@ -1,9 +1,9 @@
 # Contrat de lot — Lot 4 « My Diaba Auto, favoris, recherches enregistrées, demandes »
 
-> Lot nommé « lot 4 » par `dev.md` §11. Couvre les trois fonctionnalités que `dev.md` place ensemble à
+> Lot nommé « lot 4 » par `CLAUDE.md` §11. Couvre les trois fonctionnalités que `CLAUDE.md` place ensemble à
 > cette étape : favoris (visiteur + client), recherches enregistrées, demandes personnalisées
 > (`/commander`), ainsi que leur surface dans My Diaba Auto. Décision D30 : favoris non remontés plus
-> tôt, ordre de `dev.md` confirmé par l'orchestrateur (aucun arbitrage produit ne l'impose).
+> tôt, ordre de `CLAUDE.md` confirmé par l'orchestrateur (aucun arbitrage produit ne l'impose).
 >
 > Rédigé par l'orchestrateur avant répartition à trois sous-agents travaillant sur des périmètres de
 > fichiers **disjoints**. L'intégration finale (branchement dans `app/my-diaba-auto/page.tsx`,
@@ -14,7 +14,7 @@
 ## 0. Décisions techniques prises pour ce lot (réversibles, aucun arbitrage produit requis)
 
 - **T33** — `custom_requests` gagne `contact_name` / `contact_phone` (nullable). Nécessaire pour
-  respecter dev.md §4/§5 (« une demande personnalisée peut suivre le parcours visiteur [...] conserver
+  respecter CLAUDE.md §4/§5 (« une demande personnalisée peut suivre le parcours visiteur [...] conserver
   les coordonnées nécessaires même sans compte ») : le modèle initial ne portait aucune colonne de
   contact hors `customer_id`. Schéma et migration M03 déjà mis à jour par l'orchestrateur avant ce
   contrat. **Ne pas modifier à nouveau `prisma/schema.prisma` ni les migrations `prisma/migrations/`** :
@@ -37,11 +37,11 @@
   sans authentification.
 - **T37** — Aucune des trois fonctionnalités n'introduit de nouvelle permission ni de nouvelle route
   back-office : la lecture/gestion des demandes et prospects par le personnel reste hors périmètre de
-  ce lot (prévue au lot CRM, `dev.md` §11 point 5).
+  ce lot (prévue au lot CRM, `CLAUDE.md` §11 point 5).
 
 ## 1. Invariants transversaux (rappel, s'appliquent aux trois sous-agents)
 
-- Ordre de contrôle serveur imposé (dev.md §6) : session → statut compte → permission → portée/propriété
+- Ordre de contrôle serveur imposé (CLAUDE.md §6) : session → statut compte → permission → portée/propriété
   → validation → exécution + audit. Pour favoris/recherches/demandes client, la cible (`customerId`)
   vient **toujours** de l'acteur résolu côté serveur (`getCurrentActor()`), jamais du formulaire ou de
   l'URL.
@@ -140,7 +140,7 @@
 - `app/(public)/commander/page.tsx` — remplace le stub. Formulaire complet : accessible sans session,
   pré-rempli si client connecté (lecture seule des coordonnées issues du profil, pas de champ modifiable
   redondant avec My Diaba Auto), confirmation claire que la demande **ne vaut ni réservation ni
-  commande** (dev.md §1).
+  commande** (CLAUDE.md §1).
 - `components/public/CustomRequestForm.tsx` — formulaire client, même mécanique que
   `components/auth/RegisterForm.tsx` (état `pending`, enveloppe d'erreur, pas de soumission native).
 - `components/profile/CustomRequestsList.tsx` — liste des demandes du client (section autonome pour

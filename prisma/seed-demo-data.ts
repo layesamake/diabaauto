@@ -1,7 +1,7 @@
 /**
  * Jeu de DONNÉES DE DÉMONSTRATION Diaba Auto — lot catalogue.
  *
- * Cadre : `dev.md` §9 (« Utilise des données fictives uniquement pour le développement et les tests,
+ * Cadre : `CLAUDE.md` §9 (« Utilise des données fictives uniquement pour le développement et les tests,
  * en les identifiant clairement ») et §12 (« Les données fictives servent aux tests et aux
  * démonstrations identifiées »).
  *

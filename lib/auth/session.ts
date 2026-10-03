@@ -6,7 +6,7 @@ import { resolveActor, type Actor } from "@/services/identity.service";
 /**
  * Acteur serveur de la requête courante.
  *
- * Ordre imposé (dev.md §6) : 1) session vérifiée côté serveur, 2) statut du compte, 3) permission,
+ * Ordre imposé (CLAUDE.md §6) : 1) session vérifiée côté serveur, 2) statut du compte, 3) permission,
  * 4) portée et propriété. Cette fonction couvre les étapes 1 et 2 ; les gardes de
  * `services/access.service.ts` couvrent les étapes 3 et 4.
  *

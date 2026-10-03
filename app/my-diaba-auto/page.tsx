@@ -27,7 +27,7 @@ import { logoutAction, updateProfileAction } from "./actions";
 /**
  * My Diaba Auto — tableau de bord du client.
  * `force-dynamic` garantit qu'aucune version privée n'est générée statiquement ni mise en cache :
- * le contenu dépend de la session, jamais d'un cache partagé (dev.md §9).
+ * le contenu dépend de la session, jamais d'un cache partagé (CLAUDE.md §9).
  */
 export const dynamic = "force-dynamic";
 

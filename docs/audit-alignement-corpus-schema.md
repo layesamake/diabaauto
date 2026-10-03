@@ -2,7 +2,7 @@
 
 > Date : 2026-09-28. Dépôt : `/opt/data/projects/diabacar` (commit de référence : `34c8b73`).
 > Sources : `docs/03_Modele_de_donnees_SOURCE.docx`, `docs/12_Schema_Prisma_final_propose.docx`,
-> `docs/07_Roles_et_permissions.docx`, `docs/17_Cahier_securite.docx`, `dev.md` §7 et §11.
+> `docs/07_Roles_et_permissions.docx`, `docs/17_Cahier_securite.docx`, `CLAUDE.md` §7 et §11.
 > Objet implémenté : `prisma/schema.prisma` (317 lignes), `prisma/migrations/M01→M05`, `services/`, `repositories/`, `tests/`.
 
 ## 1. Méthode
@@ -68,7 +68,7 @@ Légende : `D` = divergence de référentiel (à trancher) — `C` = à corriger
 Le corpus canonique décrit des pans entiers absents du schéma. Ils doivent être **modélisés avant
 d'être codés**, sinon le lot catalogue reproduira la divergence :
 
-- **Référentiels** (doc 03 §5) : `generations`, `trims`, `body_types`, `fuel_types`, `transmission_types`, `colors`, `option_categories`, `options`, `feature_definitions` — le dépôt n'a que `Brand` et `VehicleModel`, et `Vehicle.fuel`/`transmission` en chaîne libre (`dev.md` §7 et le doc 03 exigent des listes administrables : écart E13/D11 confirmé par le corpus canonique).
+- **Référentiels** (doc 03 §5) : `generations`, `trims`, `body_types`, `fuel_types`, `transmission_types`, `colors`, `option_categories`, `options`, `feature_definitions` — le dépôt n'a que `Brand` et `VehicleModel`, et `Vehicle.fuel`/`transmission` en chaîne libre (`CLAUDE.md` §7 et le doc 03 exigent des listes administrables : écart E13/D11 confirmé par le corpus canonique).
 - **Véhicule** (doc 03 §6) : une trentaine de champs absents (génération, finition, carrosserie, énergie/boîte en FK, puissance, portes, places, couleurs, `source_type`, `supplier_*`, `featured`, `eligibility_*`, `archived_at`, `deleted_at`), plus l'invariant `reference = DBC-YYYY-NNNNNN` (aucune `CHECK` de format) et la règle « prix **ou** mode sur demande » que `publicPrice` obligatoire interdit.
 - **Médias** (doc 03 §7) : `vehicle_media` avec `media_type IMAGE/VIDEO`, `thumbnail_path`, `external_video_url`, `category`, `display_order`.
 - **Pricing** (doc 03 §9) : `vehicle_prices` (`pricing_profile`, `price_type REGULAR/PROMOTIONAL`, `base_amount` **et `transport_amount` séparés**, `valid_from`/`valid_to`, `is_active`), `exchange_rates`, `price_history`. Le dépôt stocke `publicPrice`/`resellerPrice`/`currency` sur `Vehicle` : **D10 est tranché par le corpus canonique** (table dédiée), ce qui rend `services/pricing.service.ts` et la migration M02 provisoires.

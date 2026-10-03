@@ -4,7 +4,7 @@ import type { ResellerStatus } from "@/services/pricing.service";
 /**
  * Logique de présentation de My Diaba Auto, isolée du JSX pour être testée sans DOM.
  *
- * Contrainte éditoriale (dev.md §8) : aucun numéro, aucune adresse, aucun témoignage et aucune
+ * Contrainte éditoriale (CLAUDE.md §8) : aucun numéro, aucune adresse, aucun témoignage et aucune
  * promesse commerciale ne sont inventés. Les libellés décrivent uniquement l'état enregistré.
  */
 

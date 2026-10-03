@@ -1,6 +1,6 @@
 # Rapport de lot — « Référentiels, véhicules et catalogue public »
 
-> Lot nommé « lot 3 » par `dev.md` §11 (« Référentiels, véhicules et catalogue public ») et « Lot 2 » par `docs/15_Roadmap_plan_developpement.docx` (décision D16 : le contenu prime sur le numéro).
+> Lot nommé « lot 3 » par `CLAUDE.md` §11 (« Référentiels, véhicules et catalogue public ») et « Lot 2 » par `docs/15_Roadmap_plan_developpement.docx` (décision D16 : le contenu prime sur le numéro).
 > Date du rapport : 2026-09-29. Dépôt : `/opt/data/projects/diabacar`. Commit du lot : `75ea72d`.
 > Exécution : un agent orchestrateur a figé les interfaces dans un contrat de lot, puis trois sous-agents
 > ont travaillé en parallèle sur des périmètres de fichiers disjoints (service/repository catalogue,
@@ -93,4 +93,4 @@ Toutes les lectures publiques lèvent `PrismaClientInitializationError` faute de
 2. **Amorcer des données réelles** : marques, modèles (D14/D25), puis véhicules avec média principal public et prix actif STANDARD, sinon le catalogue public restera vide (D32).
 3. **Trancher** D26 (taux de change), D27 (numéro WhatsApp et paramètres de contact), D28 (indexation des véhicules vendus), D29 (langues et routage), D30 (favoris : à remonter ou non avant le lot 4), D31 (règles d'import).
 4. **Renseigner `NEXT_PUBLIC_APP_URL`** en préproduction et production, ainsi que `images.remotePatterns` dans `next.config.ts` pour que les visuels du bucket soient optimisés.
-5. **Lot suivant** : My Diaba Auto — favoris, recherches enregistrées et demandes (`dev.md` §11), en réutilisant la voie de lecture publique et les gardes existantes.
+5. **Lot suivant** : My Diaba Auto — favoris, recherches enregistrées et demandes (`CLAUDE.md` §11), en réutilisant la voie de lecture publique et les gardes existantes.
