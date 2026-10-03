@@ -8,6 +8,9 @@
  */
 
 export const RUBRIC_ICON_NAMES = [
+  "aujourdhui",
+  "contacts",
+  "reglages",
   "vehicules",
   "referentiels",
   "prospects",
