@@ -12,6 +12,7 @@ import { PriceBlock } from "@/components/public/PriceBlock";
 import { ShareButton } from "@/components/public/ShareButton";
 import { StatusBadges, detailBadges } from "@/components/public/StatusBadges";
 import { VehicleGallery } from "@/components/public/VehicleGallery";
+import { TrackOnMount } from "@/components/analytics/TrackOnMount";
 import { VehicleWhatsAppCta } from "@/components/public/VehicleWhatsAppCta";
 import { VehicleGrid } from "@/components/public/VehicleGrid";
 import { formatAmount, formatMileage, formatPublishedDate, fr } from "@/lib/i18n";
@@ -127,6 +128,10 @@ export default async function VehiclePage({ params }: PageProps) {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
+      <TrackOnMount
+        event="vehicle_view"
+        params={{ vehicle_reference: vehicle.reference, location: vehicle.logisticsLocation }}
+      />
       <script {...jsonLdScriptProps(jsonLd)} />
 
       <nav aria-label={fr.common.backToCatalogue} className="mb-4 text-sm">

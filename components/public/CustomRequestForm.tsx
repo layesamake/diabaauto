@@ -13,6 +13,7 @@
  * avec My Diaba Auto (contrat §2).
  */
 
+import { trackEvent } from "@/lib/analytics/events";
 import { useState } from "react";
 import { submitCustomRequestAction, type CustomRequestActionState } from "@/app/(public)/commander/actions";
 import { customRequestMessages as msg } from "@/lib/i18n/custom-request.fr";
@@ -66,6 +67,8 @@ export function CustomRequestForm({ isAuthenticated, connectedContact }: CustomR
       const result = await submitCustomRequestAction(formData);
       setState(result);
       if ("data" in result) {
+        // Confirmé par le serveur : seule vraie conversion mesurée (jamais le contenu de la demande).
+        trackEvent("request_submitted");
         // `event.currentTarget` vaut null après un await : on capture l'élément AVANT l'appel.
         // Sans cela, `reset()` lève une TypeError, le catch affiche un échec alors que la demande
         // est bien enregistrée, et l'utilisateur resoumet (doublons).

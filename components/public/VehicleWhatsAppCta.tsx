@@ -1,3 +1,4 @@
+import { TrackedAnchor } from "@/components/analytics/TrackedAnchor";
 import { getPublicContact } from "@/services/public-contact.service";
 import { absoluteUrl } from "@/lib/seo";
 import { buildVehicleWhatsAppUrl } from "@/lib/whatsapp";
@@ -37,14 +38,16 @@ export async function VehicleWhatsAppCta({
 
   return (
     <div className="flex flex-col gap-2">
-      <a
+      <TrackedAnchor
+        event="contact_whatsapp_click"
+        params={{ vehicle_reference: reference }}
         href={url}
         target="_blank"
         rel="noopener noreferrer"
         className="rounded-lg bg-[#0063DF] px-5 py-3 text-center text-sm font-semibold text-white hover:bg-[#0354A3]"
       >
         {fr.vehicle.whatsappCta}
-      </a>
+      </TrackedAnchor>
       <p className="text-xs text-slate-500">{fr.vehicle.whatsappNote}</p>
     </div>
   );

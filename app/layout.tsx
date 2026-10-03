@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { AnalyticsProvider } from "@/components/analytics/AnalyticsProvider";
+import { CookiePreferencesButton } from "@/components/analytics/CookiePreferencesButton";
+import { readAnalyticsMeasurementId } from "@/lib/analytics/config";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,6 +19,8 @@ const navItems = [
 ];
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const measurementId = readAnalyticsMeasurementId(process.env);
+
   return (
     <html lang="fr">
       <body>
@@ -34,8 +39,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         </header>
         {children}
         <footer className="mt-16 bg-[#011D4F] px-4 py-8 text-white">
-          <div className="mx-auto max-w-6xl text-sm">© Diaba Auto — Véhicules neufs et d’occasion Chine / Sénégal.</div>
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 text-sm">
+            <span>© Diaba Auto — Véhicules neufs et d’occasion Chine / Sénégal.</span>
+            {measurementId ? <CookiePreferencesButton /> : null}
+          </div>
         </footer>
+        <AnalyticsProvider measurementId={measurementId} />
       </body>
     </html>
   );
