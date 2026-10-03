@@ -23,6 +23,7 @@ export const AUDITED_ACTIONS = [
   "vehicle.sell",
   "order.status.change",
   "settings.change",
+  "content.change",
 ] as const;
 
 export type AuditAction = (typeof AUDITED_ACTIONS)[number];

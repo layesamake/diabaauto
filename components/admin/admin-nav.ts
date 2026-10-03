@@ -80,6 +80,13 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
     label: "Réglages",
     entries: [
       {
+        href: "/admin/contenus",
+        label: "Contenus",
+        description: "Les textes des pages « À propos » et « Comment ça marche ».",
+        icon: "contenus",
+        permission: "content.manage",
+      },
+      {
         href: "/admin/referentiels",
         label: "Marques et modèles",
         description: "Carrosseries, énergies, boîtes, couleurs et équipements.",

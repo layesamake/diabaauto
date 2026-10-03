@@ -77,6 +77,7 @@ async function restGet(path) {
 const PRIVATE_TABLES = [
   "audit_logs",
   "site_settings",
+  "site_pages",
   "profiles",
   "customer_profiles",
   "staff_profiles",

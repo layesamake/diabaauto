@@ -22,6 +22,7 @@ export const ACTION_LABELS: Readonly<Record<AuditAction, string>> = {
   "vehicle.sell": "Véhicule vendu",
   "order.status.change": "Statut d'une commande modifié",
   "settings.change": "Paramètre modifié",
+  "content.change": "Page du site modifiée",
 };
 
 export function actionLabel(action: string): string {
@@ -52,7 +53,7 @@ export const ACTIONS_BY_CATEGORY: Readonly<Record<AuditCategory, readonly AuditA
   revendeurs: ["reseller.status.change"],
   vehicules: ["vehicle.price.change", "vehicle.publish", "vehicle.withdraw", "vehicle.reserve", "vehicle.sell"],
   commandes: ["order.status.change"],
-  parametres: ["settings.change"],
+  parametres: ["settings.change", "content.change"],
 };
 
 export function categoryOfAction(action: string): AuditCategory | null {
@@ -118,6 +119,8 @@ export function entityHref(entityType: string, entityId: string | null): string 
       return `/admin/commandes?commande=${id}`;
     case "CustomerProfile":
       return `/admin/clients/${id}`;
+    case "SitePage":
+      return `/admin/contenus/${id}`;
     default:
       return null;
   }
@@ -127,6 +130,7 @@ const ENTITY_LABELS: Readonly<Record<string, string>> = {
   Vehicle: "Véhicule",
   VehiclePrice: "Prix de véhicule",
   Order: "Commande",
+  SitePage: "Page du site",
   Reservation: "Réservation",
   ResellerApplication: "Demande Revendeur",
   CustomerProfile: "Client",
