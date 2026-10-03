@@ -2,8 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useCallback, type DragEvent } from "react";
-import { uploadVehicleImagesAction, type UploadActionState } from "@/app/admin/actions";
+import {
+  addImageUrlsAction,
+  finalizeImageUploadsAction,
+  requestImageUploadsAction,
+} from "@/app/admin/actions";
+import { formatSize } from "@/lib/format-size";
+import { isAcceptedImageFile, prepareImageForUpload } from "@/lib/media/client-image-compress";
 import { MAX_IMAGES_PER_VEHICLE, ACCEPTED_IMAGE_MIME_TYPES } from "@/lib/media-constants";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import type { UploadResult } from "@/services/image-upload.service";
 
 /**
  * Panneau d'upload multi-images pour le backoffice véhicule.
@@ -13,8 +21,13 @@ import { MAX_IMAGES_PER_VEHICLE, ACCEPTED_IMAGE_MIME_TYPES } from "@/lib/media-c
  * - Collage d'une URL d'image.
  *
  * Limite : 5 images max par véhicule (existantes + nouvelles).
- * Chaque image est optimisée côté serveur (WebP, resize, thumbnail).
+ *
+ * Fichiers : réduits dans le navigateur, déposés DIRECTEMENT dans le stockage (ils ne passent pas par
+ * une Server Action, dont le corps de requête est limité), puis optimisés par le serveur (WebP,
+ * redimensionnement, vignette, suppression des métadonnées). URL : téléchargées par le serveur.
  */
+
+type Outcome = { message: string; results: UploadResult[] } | { error: string };
 
 type PendingImage =
   | { type: "file"; file: File; preview: string }
@@ -34,7 +47,8 @@ export function ImageUploadPanel({
   const [pending, setPending] = useState<PendingImage[]>([]);
   const [urlInput, setUrlInput] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState<UploadActionState | null>(null);
+  const [phase, setPhase] = useState("");
+  const [result, setResult] = useState<Outcome | null>(null);
   const [dragOver, setDragOver] = useState(false);
 
   const remaining = MAX_IMAGES_PER_VEHICLE - existingImageCount - pending.length;
@@ -46,7 +60,7 @@ export function ImageUploadPanel({
 
       for (const file of fileArray) {
         if (newItems.length + pending.length >= MAX_IMAGES_PER_VEHICLE - existingImageCount) break;
-        if (!ACCEPTED_TYPES.includes(file.type)) continue;
+        if (!isAcceptedImageFile(file)) continue;
 
         newItems.push({
           type: "file",
@@ -69,7 +83,7 @@ export function ImageUploadPanel({
 
     try {
       const parsed = new URL(trimmed);
-      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return;
+      if (parsed.protocol !== "https:") return;
     } catch {
       return;
     }
@@ -91,47 +105,117 @@ export function ImageUploadPanel({
     });
   }
 
+  async function sendFiles(files: File[]): Promise<UploadResult[]> {
+    const fail = (file: File, error: string): UploadResult => ({ ok: false, source: file.name, error });
+
+    // 1. Réduction dans le navigateur (gain de temps d'envoi, le serveur refait tout).
+    const prepared = [];
+    for (const [index, file] of files.entries()) {
+      setPhase(`Préparation des images (${index + 1}/${files.length})…`);
+      prepared.push(await prepareImageForUpload(file));
+    }
+
+    // 2. Cibles d'envoi signées : le serveur vérifie la permission et la place restante.
+    setPhase("Préparation de l'envoi…");
+    const request = new FormData();
+    request.set("vehicleId", vehicleId);
+    request.set("count", String(files.length));
+    const targets = await requestImageUploadsAction(request);
+    if ("error" in targets) {
+      return files.map((file) => fail(file, targets.error.message));
+    }
+
+    // 3. Dépôt direct dans le stockage.
+    const storage = createSupabaseBrowserClient().storage.from(targets.data.bucket);
+    const results: UploadResult[] = [];
+    const uploaded: Array<{ path: string; name: string }> = [];
+
+    for (const [index, file] of files.entries()) {
+      const target = targets.data.targets[index];
+      const item = prepared[index];
+      if (!target || !item) {
+        results.push(fail(file, "Envoi impossible."));
+        continue;
+      }
+
+      setPhase(`Envoi des images (${index + 1}/${files.length})…`);
+      const { error } = await storage.uploadToSignedUrl(target.path, target.token, item.blob, {
+        contentType: item.contentType,
+      });
+
+      if (error) {
+        results.push(fail(file, "L'envoi du fichier a échoué."));
+      } else {
+        uploaded.push({ path: target.path, name: file.name });
+      }
+    }
+
+    // 4. Optimisation et enregistrement par le serveur.
+    if (uploaded.length > 0) {
+      setPhase("Optimisation des images…");
+      const finalize = new FormData();
+      finalize.set("vehicleId", vehicleId);
+      finalize.set("items", JSON.stringify(uploaded));
+      const finalized = await finalizeImageUploadsAction(finalize);
+
+      if ("error" in finalized) {
+        results.push(...uploaded.map((entry) => ({ ok: false as const, source: entry.name, error: finalized.error.message })));
+      } else {
+        results.push(...finalized.data.results);
+      }
+    }
+
+    return results;
+  }
+
+  async function sendUrls(urls: string[]): Promise<UploadResult[]> {
+    setPhase("Téléchargement et optimisation des liens…");
+    const formData = new FormData();
+    formData.set("vehicleId", vehicleId);
+    formData.set("urls", JSON.stringify(urls));
+    const response = await addImageUrlsAction(formData);
+
+    if ("error" in response) {
+      return urls.map((url) => ({ ok: false as const, source: url, error: response.error.message }));
+    }
+
+    return response.data.results;
+  }
+
   async function handleUpload() {
     if (pending.length === 0 || uploading) return;
 
     setUploading(true);
     setResult(null);
 
-    const formData = new FormData();
-    formData.set("vehicleId", vehicleId);
-
-    // Fichiers
-    for (const item of pending) {
-      if (item.type === "file") {
-        formData.append("files", item.file);
-      }
-    }
-
-    // URLs
-    const urls = pending.filter((item) => item.type === "url").map((item) => (item as { type: "url"; url: string }).url);
-    if (urls.length > 0) {
-      formData.set("urls", JSON.stringify(urls));
-    }
+    const files = pending.flatMap((item) => (item.type === "file" ? [item.file] : []));
+    const urls = pending.flatMap((item) => (item.type === "url" ? [item.url] : []));
+    const results: UploadResult[] = [];
 
     try {
-      const actionResult = await uploadVehicleImagesAction(formData);
-      setResult(actionResult);
-
-      if ("data" in actionResult) {
-        // Révoquer les previews et vider la file
-        for (const item of pending) {
-          if (item.type === "file") {
-            URL.revokeObjectURL(item.preview);
-          }
-        }
-        setPending([]);
-        router.refresh();
-      }
+      if (files.length > 0) results.push(...(await sendFiles(files)));
+      if (urls.length > 0) results.push(...(await sendUrls(urls)));
     } catch {
-      setResult({ error: { code: "INTERNAL", message: "L'upload n'a pas pu aboutir. Réessayez." } });
+      results.push({ ok: false, source: "Envoi", error: "L'envoi n'a pas pu aboutir. Réessayez." });
     } finally {
+      setPhase("");
       setUploading(false);
     }
+
+    const successCount = results.filter((entry) => entry.ok).length;
+    setResult({
+      message:
+        successCount === results.length
+          ? `${successCount} image${successCount > 1 ? "s" : ""} ajoutée${successCount > 1 ? "s" : ""}.`
+          : `${successCount} / ${results.length} image(s) ajoutée(s). Certaines ont échoué.`,
+      results,
+    });
+
+    for (const item of pending) {
+      if (item.type === "file") URL.revokeObjectURL(item.preview);
+    }
+    setPending([]);
+    router.refresh();
   }
 
   function handleDragOver(e: DragEvent) {
@@ -316,30 +400,46 @@ export function ImageUploadPanel({
           className="self-start rounded-lg bg-[#0063DF] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0354A3] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {uploading
-            ? "Optimisation et téléversement…"
+            ? phase || "Envoi en cours…"
             : `Téléverser ${pending.length} image${pending.length > 1 ? "s" : ""}`}
         </button>
       ) : null}
 
       {/* Messages de résultat */}
-      {result && "data" in result ? (
-        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3">
-          <p className="text-sm font-medium text-green-800">{result.data.message}</p>
-          {result.data.results.some((r) => !r.ok) ? (
-            <ul className="mt-2 space-y-1">
-              {result.data.results
-                .filter((r) => !r.ok)
-                .map((r, i) => (
-                  <li key={i} className="text-xs text-red-700">
-                    {!r.ok && r.source} : {!r.ok && r.error}
-                  </li>
-                ))}
-            </ul>
-          ) : null}
+      {result && "results" in result ? (
+        <div
+          role="status"
+          className={`rounded-lg border px-4 py-3 ${
+            result.results.some((r) => r.ok) ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"
+          }`}
+        >
+          <p
+            className={`text-sm font-medium ${
+              result.results.some((r) => r.ok) ? "text-green-800" : "text-red-800"
+            }`}
+          >
+            {result.message}
+          </p>
+          <ul className="mt-2 space-y-1">
+            {result.results.map((r, i) =>
+              r.ok ? (
+                <li key={i} className="text-xs text-green-800">
+                  {r.source} : {formatSize(r.originalBytes)} → {formatSize(r.optimizedBytes)}
+                  {r.optimizedBytes < r.originalBytes
+                    ? ` (−${Math.round((1 - r.optimizedBytes / r.originalBytes) * 100)} %)`
+                    : ""}
+                </li>
+              ) : (
+                <li key={i} className="text-xs text-red-700">
+                  {r.source} : {r.error}
+                </li>
+              ),
+            )}
+          </ul>
         </div>
       ) : result && "error" in result ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-          <p className="text-sm font-medium text-red-800">{result.error.message}</p>
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+          <p className="text-sm font-medium text-red-800">{result.error}</p>
         </div>
       ) : null}
     </div>

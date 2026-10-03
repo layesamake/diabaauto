@@ -3,7 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { AdminActionState } from "@/app/admin/actions";
-import { addMediaAction, removeMediaAction, setPrimaryMediaAction } from "@/app/admin/actions";
+import {
+  addMediaAction,
+  removeMediaAction,
+  reoptimizeMediaAction,
+  setPrimaryMediaAction,
+} from "@/app/admin/actions";
 import { AdminForm } from "@/components/admin/AdminForm";
 import { AdminTextField } from "@/components/admin/AdminFields";
 import { ImageUploadPanel } from "@/components/admin/ImageUploadPanel";
@@ -11,6 +16,7 @@ import {
   DOCUMENT_VISIBILITY_LABELS,
   MEDIA_TYPE_LABELS,
 } from "@/components/admin/admin-view";
+import { formatSize } from "@/lib/format-size";
 import type { MediaRow } from "@/services/media.service";
 
 /**
@@ -126,6 +132,7 @@ function MediaCard({ media, canEdit }: { media: MediaRow; canEdit: boolean }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
 
   const isPrimaryImage = media.mediaType === "IMAGE" && media.visibility === "PUBLIC";
   const thumbnailSrc =
@@ -147,6 +154,36 @@ function MediaCard({ media, canEdit }: { media: MediaRow; canEdit: boolean }) {
         router.refresh();
       } else {
         setError(result.error.message);
+      }
+    } catch {
+      setError("Opération échouée.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function reoptimize() {
+    if (pending) return;
+
+    const formData = new FormData();
+    formData.set("mediaId", media.id);
+    setPending(true);
+    setError("");
+    setInfo("");
+
+    try {
+      const response = await reoptimizeMediaAction(formData);
+      if ("error" in response) {
+        setError(response.error.message);
+        return;
+      }
+
+      const outcome = response.data.result;
+      if (outcome.ok && outcome.changed) {
+        setInfo(`${formatSize(outcome.beforeBytes)} → ${formatSize(outcome.afterBytes)}`);
+        router.refresh();
+      } else {
+        setInfo("Déjà optimisée.");
       }
     } catch {
       setError("Opération échouée.");
@@ -217,6 +254,17 @@ function MediaCard({ media, canEdit }: { media: MediaRow; canEdit: boolean }) {
           ) : (
             <span className="flex-1" />
           )}
+          {media.mediaType === "IMAGE" && media.storagePath ? (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => void reoptimize()}
+              className="border-l border-slate-100 px-2.5 py-1.5 text-[11px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              title="Recompresser cette image pour le web"
+            >
+              Optimiser
+            </button>
+          ) : null}
           <button
             type="button"
             disabled={pending}
@@ -232,6 +280,8 @@ function MediaCard({ media, canEdit }: { media: MediaRow; canEdit: boolean }) {
           </button>
         </div>
       ) : null}
+
+      {info ? <p className="px-2 pb-1.5 text-[10px] text-slate-500">{info}</p> : null}
 
       {/* Erreur */}
       {error ? (

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AppError } from "@/lib/errors";
+import { MAX_IMAGES_PER_VEHICLE } from "@/lib/media-constants";
 import { createVehicleMediaRepository } from "@/repositories/vehicle-media.repository";
 import { requireStaff } from "@/services/access.service";
 import type { Actor } from "@/services/identity.service";
@@ -48,6 +49,13 @@ export type VehicleMediaRepository = {
   demotePrimary(vehicleId: string, exceptId: string | null): Promise<void>;
   setDisplayOrder(id: string, displayOrder: number): Promise<void>;
   remove(id: string): Promise<void>;
+  /** Remplace les fichiers (original + vignette) d'un média image, sans changer son identifiant. */
+  updateFiles(id: string, files: { storagePath: string; thumbnailPath: string | null }): Promise<MediaRow>;
+  /**
+   * Verrouille la ligne du véhicule jusqu'à la fin de la transaction courante (`SELECT … FOR UPDATE`).
+   * Sérialise les ajouts concurrents. Retourne `false` si le véhicule n'existe pas.
+   */
+  lockVehicle(vehicleId: string): Promise<boolean>;
   transaction<T>(fn: (tx: VehicleMediaRepository) => Promise<T>): Promise<T>;
 };
 
@@ -174,13 +182,29 @@ export async function addMedia(
   const vehicle = idOf(vehicleId);
   const parsed = parseMedia(input);
 
-  const existing = await mediaRepository.listByVehicle(vehicle);
-  const maxOrder = existing.reduce((max, item) => Math.max(max, item.displayOrder), -1);
-  const becomesPrimary =
-    parsed.isPrimary ??
-    (existing.length === 0 && parsed.mediaType === "IMAGE" && parsed.visibility === "PUBLIC");
-
   const created = await mediaRepository.transaction(async (tx) => {
+    // Le verrou rend « compter puis insérer » atomique : deux ajouts simultanés ne peuvent pas
+    // dépasser la limite. Un déclencheur SQL (M10) reste le filet de sécurité final.
+    if (!(await tx.lockVehicle(vehicle))) {
+      throw new AppError("NOT_FOUND", "Ressource introuvable.");
+    }
+
+    const existing = await tx.listByVehicle(vehicle);
+    if (
+      parsed.mediaType === "IMAGE" &&
+      existing.filter((item) => item.mediaType === "IMAGE").length >= MAX_IMAGES_PER_VEHICLE
+    ) {
+      throw new AppError(
+        "VALIDATION",
+        `Limite de ${MAX_IMAGES_PER_VEHICLE} images par véhicule atteinte.`,
+      );
+    }
+
+    const maxOrder = existing.reduce((max, item) => Math.max(max, item.displayOrder), -1);
+    const becomesPrimary =
+      parsed.isPrimary ??
+      (existing.length === 0 && parsed.mediaType === "IMAGE" && parsed.visibility === "PUBLIC");
+
     if (becomesPrimary) {
       await tx.demotePrimary(vehicle, null);
     }
@@ -199,6 +223,40 @@ export async function addMedia(
   });
 
   return { id: created.id };
+}
+
+/** Lecture d'un média par identifiant (back-office). */
+export async function getMedia(actor: Actor, mediaId: string): Promise<MediaRow> {
+  requireStaff(actor, "vehicle.view");
+  const record = await mediaRepository.findById(idOf(mediaId));
+  if (!record) {
+    throw new AppError("NOT_FOUND", "Ressource introuvable.");
+  }
+
+  return record;
+}
+
+/**
+ * Remplace les fichiers d'un média image (ré-optimisation). L'identifiant, l'ordre, la visibilité et
+ * le statut « principal » sont conservés : les URL `/api/media/[id]` restent valables.
+ */
+export async function replaceMediaFiles(
+  actor: Actor,
+  mediaId: string,
+  files: { storagePath: string; thumbnailPath: string | null },
+): Promise<MediaRow> {
+  requireStaff(actor, "vehicle.edit");
+  const id = idOf(mediaId);
+
+  const record = await mediaRepository.findById(id);
+  if (!record) {
+    throw new AppError("NOT_FOUND", "Ressource introuvable.");
+  }
+  if (record.mediaType !== "IMAGE") {
+    throw new AppError("VALIDATION", "Seule une image peut être ré-optimisée.");
+  }
+
+  return mediaRepository.updateFiles(id, files);
 }
 
 /**

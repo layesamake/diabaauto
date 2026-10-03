@@ -36,6 +36,8 @@ export type VehicleStorageService = {
   createSignedUploadUrl(storagePath: string): Promise<SignedUploadTarget>;
   /** Upload direct d'un buffer dans le bucket via service_role (upsert = false). */
   uploadFile(storagePath: string, data: Buffer, contentType: string): Promise<void>;
+  /** Lit un fichier du bucket (au plus `maxBytes` octets, sinon erreur `VALIDATION`). */
+  downloadFile(storagePath: string, maxBytes: number): Promise<Buffer>;
   /** Supprime un fichier du bucket. Silencieux si le fichier n'existe pas. */
   deleteFile(storagePath: string): Promise<void>;
 };
@@ -128,6 +130,20 @@ export function createVehicleStorageService(
       if (error) {
         throw new AppError("INTERNAL", "Le téléversement du fichier a échoué.");
       }
+    },
+
+    async downloadFile(storagePath: string, maxBytes: number): Promise<Buffer> {
+      const { client, bucket } = ensureConfigured();
+      const { data, error } = await client.storage.from(bucket).download(storagePath);
+
+      if (error || !data) {
+        throw new AppError("NOT_FOUND", "Fichier introuvable dans le stockage.");
+      }
+      if (data.size > maxBytes) {
+        throw new AppError("VALIDATION", "Image trop volumineuse.");
+      }
+
+      return Buffer.from(await data.arrayBuffer());
     },
 
     async deleteFile(storagePath: string): Promise<void> {
