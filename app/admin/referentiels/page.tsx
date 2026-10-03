@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { AdminHeader } from "@/components/admin/AdminHeader";
 import { ReferentialPanel } from "@/components/admin/ReferentialPanel";
+import { REFERENTIAL_GROUPS, REFERENTIAL_PLURAL_LABELS } from "@/components/admin/referential-groups";
 import { REFERENTIAL_FORM_FIELDS, REFERENTIAL_SCREEN_ORDER, type SelectOption } from "@/components/admin/admin-view";
 import { LogoutButton } from "@/components/profile/LogoutButton";
 import { logoutAction } from "@/app/my-diaba-auto/actions";
@@ -52,7 +53,7 @@ export default async function AdminReferentialsPage({ searchParams }: { searchPa
       <main className="mx-auto max-w-6xl px-4 py-10">
         <AdminHeader
           permissions={[]}
-          title="Référentiels"
+          title="Marques et modèles"
           subtitle="Accès réservé au personnel habilité."
           current="referentiels"
         />
@@ -108,32 +109,42 @@ export default async function AdminReferentialsPage({ searchParams }: { searchPa
     <main className="mx-auto max-w-6xl px-4 py-10">
       <AdminHeader
         permissions={access.actor.permissions}
-        title="Référentiels"
-        subtitle="Valeurs automobiles partagées par les fiches véhicule."
+        title="Marques et modèles"
+        subtitle="Les valeurs automobiles que les fiches véhicule proposent au choix."
         current="referentiels"
         logout={<LogoutButton action={logoutAction} />}
       />
 
-      <nav aria-label="Types de référentiel" className="mt-8 flex flex-wrap gap-3">
-        {REFERENTIAL_SCREEN_ORDER.map((value) =>
-          value === kind ? (
-            <span
-              key={value}
-              aria-current="page"
-              className="rounded-lg bg-[#0063DF] px-3 py-1.5 text-sm font-semibold text-white"
-            >
-              {REFERENTIAL_DESCRIPTORS[value].label}
-            </span>
-          ) : (
-            <Link
-              key={value}
-              href={`/admin/referentiels?type=${value}`}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-[#011D4F] hover:bg-[#f4f7fb]"
-            >
-              {REFERENTIAL_DESCRIPTORS[value].label}
-            </Link>
-          ),
-        )}
+      <nav aria-label="Types de référentiel" className="mt-8 grid gap-5">
+        {REFERENTIAL_GROUPS.map((group) => (
+          <section key={group.key} aria-labelledby={`groupe-${group.key}`}>
+            <h2 id={`groupe-${group.key}`} className="text-sm font-semibold text-[#011D4F]">
+              {group.label}
+              <span className="ml-2 font-normal text-slate-600">{group.hint}</span>
+            </h2>
+            <ul className="mt-2 flex list-none flex-wrap gap-2 p-0">
+              {group.kinds.map((value) => (
+                <li key={value}>
+                  {value === kind ? (
+                    <span
+                      aria-current="page"
+                      className="inline-block rounded-full bg-[#0063DF] px-4 py-1.5 text-sm font-semibold text-white"
+                    >
+                      {REFERENTIAL_PLURAL_LABELS[value]}
+                    </span>
+                  ) : (
+                    <Link
+                      href={`/admin/referentiels?type=${value}`}
+                      className="inline-block rounded-full border border-slate-300 bg-white px-4 py-1.5 text-sm font-medium text-[#011D4F] no-underline hover:bg-[#f4f7fb]"
+                    >
+                      {REFERENTIAL_PLURAL_LABELS[value]}
+                    </Link>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
       </nav>
 
       <div className="mt-6">{panel}</div>
