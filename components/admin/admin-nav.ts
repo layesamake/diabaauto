@@ -9,9 +9,9 @@ import type { PermissionCode } from "@/services/permissions.service";
  * des tables : « Référentiels » et « Personnel » se règlent une fois par mois, ils descendent donc
  * hors du chemin quotidien.
  *
- * Les quatre écrans Prospects, Demandes, Clients et Revendeurs restent distincts pour l'instant,
- * mais apparaissent **sous une seule entrée Contacts** : ce sont les mêmes personnes à des moments
- * différents, et les fusionner en une liste est l'étape suivante du chantier.
+ * Prospects, demandes sur mesure, clients et demandes Revendeur sont réunis dans **une seule liste
+ * Contacts** (`/admin/contacts`) : ce sont les mêmes personnes à des moments différents. Les écrans
+ * d'origine existent toujours, ils portent les actions (statut, assignation, revue Revendeur).
  *
  * La permission listée est celle qu'exige la garde SERVEUR de l'écran cible ; elle ne décide ici
  * que de l'affichage du lien. Masquer un lien ne protège rien : chaque page garde sa propre garde.
@@ -25,8 +25,11 @@ export type AdminNavEntry = {
   readonly icon: RubricIconName;
   /** `null` : ouvert à tout membre du personnel (changer son propre mot de passe, par exemple). */
   readonly permission: PermissionCode | null;
-  /** Écrans rattachés, montrés sous l'entrée. */
-  readonly children?: readonly AdminNavEntry[];
+  /**
+   * Entrée qui réunit plusieurs sources : visible si l'acteur peut en lire AU MOINS UNE. Chaque
+   * source est ensuite filtrée par sa propre permission côté serveur.
+   */
+  readonly anyOf?: readonly PermissionCode[];
 };
 
 export type AdminNavGroup = {
@@ -56,41 +59,12 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
         permission: "vehicle.view",
       },
       {
-        href: "/admin/prospects",
+        href: "/admin/contacts",
         label: "Contacts",
-        description: "Les personnes qui veulent acheter, à tous les stades.",
+        description: "Prospects, demandes, clients et revendeurs : tout ce qui attend une réponse.",
         icon: "contacts",
-        permission: "lead.view",
-        children: [
-          {
-            href: "/admin/prospects",
-            label: "Prospects",
-            description: "Pistes commerciales, assignation et suivi.",
-            icon: "prospects",
-            permission: "lead.view",
-          },
-          {
-            href: "/admin/demandes",
-            label: "Demandes sur mesure",
-            description: "Recherches de véhicule déposées depuis le site.",
-            icon: "demandes",
-            permission: "lead.view",
-          },
-          {
-            href: "/admin/clients",
-            label: "Clients",
-            description: "Comptes clients et leur segment.",
-            icon: "clients",
-            permission: "customer.view",
-          },
-          {
-            href: "/admin/revendeurs",
-            label: "Revendeurs",
-            description: "Demandes d'agrément à examiner.",
-            icon: "revendeurs",
-            permission: "reseller.view",
-          },
-        ],
+        permission: null,
+        anyOf: ["lead.view", "customer.view", "reseller.view"],
       },
       {
         href: "/admin/commandes",
@@ -131,36 +105,26 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
 ];
 
 function isAllowed(entry: AdminNavEntry, permissions: readonly PermissionCode[]): boolean {
+  if (entry.anyOf) {
+    return entry.anyOf.some((permission) => permissions.includes(permission));
+  }
+
   return entry.permission === null || permissions.includes(entry.permission);
 }
 
 /**
- * Navigation réduite à ce que l'acteur peut réellement ouvrir.
- *
- * Une entrée parente dont tous les enfants sont refusés disparaît : laisser « Contacts » ouvrir un
- * écran interdit serait pire que de ne pas le proposer. Un groupe vidé de ses entrées disparaît aussi.
+ * Navigation réduite à ce que l'acteur peut réellement ouvrir. Un groupe vidé de ses entrées
+ * disparaît aussi : un menu qui mène à un refus apprend l'organisation interne sans rien ouvrir.
  */
 export function allowedAdminNav(permissions: readonly PermissionCode[]): AdminNavGroup[] {
   return ADMIN_NAV.flatMap((group): AdminNavGroup[] => {
-    const entries = group.entries.flatMap((entry): AdminNavEntry[] => {
-      if (entry.children) {
-        const children = entry.children.filter((child) => isAllowed(child, permissions));
-        const premier = children[0];
-
-        // Le parent mène au premier écran auquel l'acteur a droit ; sans aucun, il disparaît.
-        return premier ? [{ ...entry, href: premier.href, children }] : [];
-      }
-
-      return isAllowed(entry, permissions) ? [entry] : [];
-    });
+    const entries = group.entries.filter((entry) => isAllowed(entry, permissions));
 
     return entries.length > 0 ? [{ ...group, entries }] : [];
   });
 }
 
-/** Tous les liens visibles, parents et enfants confondus : utile aux tests et au plan du site. */
+/** Tous les liens visibles : utile aux tests et au plan du site. */
 export function allowedAdminLinks(permissions: readonly PermissionCode[]): AdminNavEntry[] {
-  return allowedAdminNav(permissions).flatMap((group) =>
-    group.entries.flatMap((entry) => [entry, ...(entry.children ?? [])]),
-  );
+  return allowedAdminNav(permissions).flatMap((group) => [...group.entries]);
 }
