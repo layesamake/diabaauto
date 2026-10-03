@@ -37,7 +37,7 @@ export async function createSupabaseServerClient() {
 
 /**
  * Identité Auth vérifiée côté serveur. `getUser()` valide le jeton auprès de Supabase :
- * ne jamais se fier à un identifiant envoyé par le navigateur (dev.md §5).
+ * ne jamais se fier à un identifiant envoyé par le navigateur (CLAUDE.md §5).
  */
 export async function getVerifiedAuthUser(): Promise<{ id: string; email: string | null } | null> {
   const supabase = await createSupabaseServerClient();

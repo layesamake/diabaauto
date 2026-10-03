@@ -3,7 +3,7 @@ import { hasPermission, type PermissionCode } from "@/services/permissions.servi
 import { toPermissionActor, type Actor } from "@/services/identity.service";
 
 /**
- * Gardes d'accès serveur — ordre imposé par dev.md §6 et le doc 10 :
+ * Gardes d'accès serveur — ordre imposé par CLAUDE.md §6 et le doc 10 :
  * 1) session, 2) statut du compte, 3) permission, 4) portée et propriété.
  * La validation des entrées (5) et l'exécution + audit (6) restent aux appelants.
  *

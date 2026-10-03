@@ -3,7 +3,7 @@
 /**
  * Server Actions d'authentification (inscription, connexion, récupération, réinitialisation, déconnexion).
  *
- * Principes imposés (doc 11, dev.md §5-§6) :
+ * Principes imposés (doc 11, CLAUDE.md §5-§6) :
  * - Supabase Auth est la seule source d'identité : aucun mot de passe n'est stocké ni journalisé ici.
  * - Seuls les champs personnels sont lus (`email`, `password`, `confirmPassword`, `firstName`, `lastName`) :
  *   un champ privilégié envoyé par le navigateur (`userType`, `status`, `resellerStatus`, `roleId`) n'est

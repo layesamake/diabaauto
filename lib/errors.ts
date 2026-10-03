@@ -47,7 +47,7 @@ export function isAppError(value: unknown): value is AppError {
 
 /**
  * Normalise n'importe quelle erreur en enveloppe `error { code, message, correlationId }`.
- * Aucune trace, requête SQL ou identifiant interne n'est transmis au client (dev.md §6).
+ * Aucune trace, requête SQL ou identifiant interne n'est transmis au client (CLAUDE.md §6).
  */
 export function toErrorResponse(error: unknown, options?: { correlationId?: string }): ErrorEnvelope {
   const base: ErrorEnvelope = isAppError(error)

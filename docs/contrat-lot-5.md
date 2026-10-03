@@ -1,6 +1,6 @@
 # Contrat de lot 5 — Approbation Revendeur, tarification et CRM
 
-> Référence : `dev.md` §11 lot 5 (« Approbation Revendeur, tarification et CRM »).
+> Référence : `CLAUDE.md` §11 lot 5 (« Approbation Revendeur, tarification et CRM »).
 > Corpus faisant foi : doc 03 §4 (Revendeur) et §11 (CRM), doc 09 §3 et §4 (machines à états),
 > doc 07 (permissions), doc 12 (`schema.prisma` proposé).
 > Établi par l'orchestrateur. **Toute modification de ce fichier est réservée au parent.**
@@ -21,7 +21,7 @@
 
 ### Hors du lot (à ne pas implémenter)
 
-- **Commandes, réservations, acomptes, logistique** → lot 6 (`dev.md` §11).
+- **Commandes, réservations, acomptes, logistique** → lot 6 (`CLAUDE.md` §11).
 - **Administration, contenus, paramètres, analytics** (`pages`, `settings`, `analytics_events`) → lot 7.
 - **Éligibilité import, règles, événements logistiques** → lot 6.
 - Pas de paiement en ligne (V1) : un acompte externe est une **preuve/statut**, jamais un encaissement.

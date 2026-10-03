@@ -5,7 +5,7 @@
  *
  * Le formulaire ne décide de rien : il envoie les champs connus à la Server Action, affiche l'état
  * renvoyé par le serveur (chargement, erreur, succès) et ne navigue qu'après confirmation réelle.
- * Aucun succès n'est simulé côté navigateur (dev.md §4).
+ * Aucun succès n'est simulé côté navigateur (CLAUDE.md §4).
  */
 
 import { useRouter } from "next/navigation";

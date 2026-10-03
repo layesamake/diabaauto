@@ -3,7 +3,7 @@
 /**
  * Server Action de la demande personnalisée (`/commander`, contrat lot 4 §2 Sous-agent C).
  *
- * Ordre imposé (dev.md §6) : 1) session (`getCurrentActor()`), 2) statut de compte (porté par
+ * Ordre imposé (CLAUDE.md §6) : 1) session (`getCurrentActor()`), 2) statut de compte (porté par
  * l'acteur), 3) permission (aucune permission n'est requise : la route est publique), 4) portée —
  * la cible (`customerId`) vient toujours de l'acteur résolu côté serveur, jamais du formulaire —,
  * 5) validation stricte (`services/custom-request.service.ts`), 6) exécution.

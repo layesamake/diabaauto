@@ -1,5 +1,5 @@
 /**
- * Favoris visiteur (contrat lot 4 §Sous-agent A, T34, dev.md §Favoris).
+ * Favoris visiteur (contrat lot 4 §Sous-agent A, T34, CLAUDE.md §Favoris).
  *
  * Stockage exclusivement côté client, clé versionnée `diaba-auto:favorites:v1` : tant qu'un visiteur
  * n'est pas connecté, aucune ligne n'est créée en base (invariant transversal §1 du contrat). Toutes
@@ -103,7 +103,7 @@ export function removeLocalFavorite(vehicleId: string): string[] {
 
 /**
  * Vide les favoris locaux. Appelée à la déconnexion pour ne pas exposer les favoris d'un visiteur
- * au prochain utilisateur de l'appareil (dev.md §Favoris) — ne supprime jamais de favori serveur,
+ * au prochain utilisateur de l'appareil (CLAUDE.md §Favoris) — ne supprime jamais de favori serveur,
  * cette fonction ne touche que `localStorage`. Ne lève jamais.
  */
 export function clearLocalFavorites(): void {

@@ -688,7 +688,7 @@ model Lead {
 // Demandes sur mesure (`custom_vehicle_requests`, doc 03 §11) : rattachées au prospect (`lead_id?`)
 // et, pour le parcours visiteur, au client lorsqu'il est identifié. Marque/modèle demandés et plage
 // d'années sont portés par des colonnes dédiées ; `criteria_json` reste pour le texte libre.
-// `contactName`/`contactPhone` ajoutés au lot 4 (décision T33) : dev.md §4 exige qu'une demande
+// `contactName`/`contactPhone` ajoutés au lot 4 (décision T33) : CLAUDE.md §4 exige qu'une demande
 // personnalisée « conserve les coordonnées nécessaires même sans compte » (parcours visiteur).
 model CustomVehicleRequest {
   id             String           @id @default(uuid()) @db.Uuid

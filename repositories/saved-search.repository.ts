@@ -9,7 +9,7 @@ import type {
 /**
  * Accès Prisma à `saved_searches` (contrat lot 4 §2 « Sous-agent B »).
  *
- * Même règle que `repositories/customer.repository.ts` (dev.md §7) : une sélection EXPLICITE, aucune
+ * Même règle que `repositories/customer.repository.ts` (CLAUDE.md §7) : une sélection EXPLICITE, aucune
  * relation, aucun modèle Prisma complet sérialisé. `customerId` n'est jamais exposé dans la ligne
  * traduite : il ne sert qu'à filtrer les requêtes, jamais à la projection renvoyée au service.
  *

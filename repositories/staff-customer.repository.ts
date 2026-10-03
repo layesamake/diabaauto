@@ -12,7 +12,7 @@ import type {
  * Accès Prisma aux clients pour le personnel (`customer_profiles`, contrat lot 5 §4 et §5).
  *
  * Projection explicite : seules les colonnes utiles à l'écran sont sélectionnées ; jamais le modèle
- * Prisma complet ni un identifiant interne (`profileId`, `authUserId`) — dev.md §7.
+ * Prisma complet ni un identifiant interne (`profileId`, `authUserId`) — CLAUDE.md §7.
  *
  * `setResellerStatus` n'écrit **que** `reseller_status` ; `pricing_profile` reste inchangé, l'octroi
  * du tarif RESELLER étant porté exclusivement par l'approbation transactionnelle de

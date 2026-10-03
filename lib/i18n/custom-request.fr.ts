@@ -2,7 +2,7 @@
  * Libellés de la demande personnalisée (`/commander`, contrat lot 4 §2 Sous-agent C).
  *
  * Fichier dédié : ne modifie ni `lib/i18n/fr.ts` ni `lib/i18n/index.ts` (fusionnés par
- * l'orchestrateur, cf. contrat §3.1). Aucune promesse commerciale ni numéro inventé (dev.md §8).
+ * l'orchestrateur, cf. contrat §3.1). Aucune promesse commerciale ni numéro inventé (CLAUDE.md §8).
  */
 export const customRequestMessages = {
   pageTitle: "Demande personnalisée",

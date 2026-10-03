@@ -1,6 +1,6 @@
 # Contrat de lot 6 — Commandes, disponibilité et suivi logistique
 
-> Référence : `dev.md` §11 lot 6 (« Commandes, disponibilité et suivi logistique »).
+> Référence : `CLAUDE.md` §11 lot 6 (« Commandes, disponibilité et suivi logistique »).
 > Corpus faisant foi : **génération courante `docs/`** — doc 03 §12-13 et §15 (modèle), doc 08 §7 (règles), doc 09 §5-7 et §10 (machines et transactions), doc 10 §5, §8, §10 (services, idempotence, événements), doc 14 §5 (acceptation).
 
 Ce contrat est **gelé**. Aucun sous-agent ne le modifie. Toute divergence constatée se rapporte, elle ne se contourne pas.

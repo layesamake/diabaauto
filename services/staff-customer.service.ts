@@ -17,7 +17,7 @@ import type { AuditWriter } from "@/services/vehicle.service";
  *   (segment, coordonnées) et pour changer le statut Revendeur (contrat §4). Aucune permission
  *   nouvelle n'est inventée (T20) ; le refus est **neutre** et n'expose aucune donnée ;
  * - **projection explicite** : seules les colonnes utiles à l'écran sont retournées, jamais un
- *   modèle Prisma complet ni un identifiant interne (`profileId`, `authUserId`) — dev.md §7 ;
+ *   modèle Prisma complet ni un identifiant interne (`profileId`, `authUserId`) — CLAUDE.md §7 ;
  * - **validation stricte** : un champ inconnu ou privilégié (`resellerStatus`, `pricingProfile`,
  *   `status`, `userType`, `id`, `profileId`, `roles`, `roleCodes`…) est **refusé**, jamais ignoré :
  *   le statut Revendeur se change uniquement par `setResellerStatus`, jamais par un patch de fiche ;

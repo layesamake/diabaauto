@@ -23,7 +23,7 @@ import { logoutAction } from "../actions";
  * privée n'est rendue à un visiteur (redirection) ni à un membre du personnel.
  *
  * `force-dynamic` : le contenu dépend de la session, aucune version privée n'est générée ni mise en
- * cache partagé (dev.md §9).
+ * cache partagé (CLAUDE.md §9).
  */
 export const dynamic = "force-dynamic";
 

@@ -4,7 +4,7 @@ import type { ResellerStatus } from "@/services/pricing.service";
 import { unionRolePermissions, type IdentityRepository, type ProfileRecord, type StaffRoleRecord } from "@/services/identity.service";
 
 /**
- * Accès aux données des profils (dev.md §7 : « retourner des objets explicitement sélectionnés selon
+ * Accès aux données des profils (CLAUDE.md §7 : « retourner des objets explicitement sélectionnés selon
  * l'acteur. Éviter de sérialiser un modèle Prisma complet »).
  *
  * Cette connexion est privilégiée côté serveur et peut contourner RLS : les contrôles de permission et

@@ -1,6 +1,6 @@
 # Rapport de lot 8 — Recette, sécurité, performance et préparation de production
 
-> Référence : `dev.md` §11 étape 8 ; roadmap `docs/15_Roadmap_plan_developpement.docx` **L10**
+> Référence : `CLAUDE.md` §11 étape 8 ; roadmap `docs/15_Roadmap_plan_developpement.docx` **L10**
 > (« Sécurité, SEO, performance, QA, lancement — gate : DoD global »).
 > Corpus faisant foi : doc 14 (tests et critères d'acceptation), doc 16 (CI/CD), doc 17 (sécurité),
 > doc 18 (SEO et performance), doc 20 (exploitation), doc 11 §9-§11.

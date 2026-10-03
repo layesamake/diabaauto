@@ -4,7 +4,7 @@
  * Accessibilité : libellé persistant (`label` lié par `htmlFor`), aide et message d'erreur reliés par
  * `aria-describedby`, `aria-invalid` en erreur, marque obligatoire annoncée aux lecteurs d'écran.
  * Le composant ne valide rien : la validation fait autorité côté serveur.
- * Aucune valeur fournie par le navigateur n'est affichée en cas d'erreur (dev.md §6).
+ * Aucune valeur fournie par le navigateur n'est affichée en cas d'erreur (CLAUDE.md §6).
  */
 
 import type { ReactNode } from "react";

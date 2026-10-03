@@ -4,7 +4,7 @@ import { useState } from "react";
 
 /**
  * Déconnexion. Le bouton n'effectue l'opération qu'après confirmation du serveur :
- * aucun succès n'est simulé côté navigateur (dev.md §4).
+ * aucun succès n'est simulé côté navigateur (CLAUDE.md §4).
  * Composant client minimal ; l'action serveur applique les contrôles d'accès.
  */
 export function LogoutButton({ action }: { action: () => Promise<unknown> }) {

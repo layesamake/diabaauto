@@ -8,7 +8,7 @@ import type { PermissionCode } from "@/services/permissions.service";
 /**
  * Garde serveur des écrans du back-office.
  *
- * Ordre imposé (dev.md §6) : session vérifiée, statut de compte, puis permission — via
+ * Ordre imposé (CLAUDE.md §6) : session vérifiée, statut de compte, puis permission — via
  * `requireStaff`, le seul point de garde réel. Un visiteur, un client ou un membre du personnel sans
  * la permission demandée reçoit un refus neutre, sans aucune donnée.
  */
