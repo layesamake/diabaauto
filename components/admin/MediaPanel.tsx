@@ -93,7 +93,7 @@ export function MediaPanel({
                 name="externalUrl"
                 label="URL de la vidéo"
                 type="url"
-                hint="Lien YouTube, Vimeo ou autre hébergeur vidéo."
+                hint="Lien YouTube ou Vimeo : la vidéo se lit sur la fiche, au clic du visiteur. Un autre lien n'est lu que s'il pointe directement un fichier vidéo (.mp4)."
                 required
               />
               <AdminTextField
