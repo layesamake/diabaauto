@@ -11,6 +11,7 @@ import { logoutAction } from "@/app/my-diaba-auto/actions";
 import { loadVehicleReferentialOptions } from "@/app/admin/catalog-options";
 import { createAdminMetadata, resolveAdminAccess } from "@/app/admin/guard";
 import { toPricingActor } from "@/services/identity.service";
+import { resolveMediaThumbnails } from "@/services/media-preview.service";
 import { listMedia } from "@/services/media.service";
 import { listVehiclePrices, resolveVehiclePrice } from "@/services/pricing.service";
 import { getVehicle } from "@/services/vehicle.service";
@@ -79,6 +80,10 @@ export default async function AdminVehicleDetailPage({ params }: { params: Promi
     loadVehicleReferentialOptions(),
   ]);
 
+  // Vignettes signées côté serveur : la route publique `/api/media` refuse les fiches non publiées,
+  // or le back-office en affiche (brouillons, archives). Un seul appel au stockage pour toutes.
+  const thumbnails = await resolveMediaThumbnails(access.actor, media);
+
   // Prix affiché par le service (aucune règle de prix n'est réimplémentée ici) : un membre du
   // personnel est traité comme un visiteur, donc il voit le prix Standard servi au public.
   const resolved = resolveVehiclePrice(
@@ -107,6 +112,7 @@ export default async function AdminVehicleDetailPage({ params }: { params: Promi
         <VehiclePreviewCard
           vehicle={vehicle}
           media={media}
+          thumbnails={thumbnails}
           price={resolved}
           names={{
             brands: options.brands,
@@ -118,7 +124,7 @@ export default async function AdminVehicleDetailPage({ params }: { params: Promi
           }}
         />
 
-        <MediaPanel vehicleId={vehicle.id} media={media} canEdit={canEdit} />
+        <MediaPanel vehicleId={vehicle.id} media={media} thumbnails={thumbnails} canEdit={canEdit} />
 
         <PricePanel vehicleId={vehicle.id} prices={prices} canEdit={canPrice} />
 

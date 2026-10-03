@@ -33,10 +33,13 @@ import type { MediaRow } from "@/services/media.service";
 export function MediaPanel({
   vehicleId,
   media,
+  thumbnails,
   canEdit,
 }: {
   vehicleId: string;
   media: MediaRow[];
+  /** URL de vignette par identifiant de média (`resolveMediaThumbnails`), signées côté serveur. */
+  thumbnails?: Map<string, string>;
   canEdit: boolean;
 }) {
   const imageCount = media.filter((m) => m.mediaType === "IMAGE").length;
@@ -54,7 +57,7 @@ export function MediaPanel({
 
       {/* Galerie des médias existants */}
       {media.length > 0 ? (
-        <MediaGrid media={media} canEdit={canEdit} />
+        <MediaGrid media={media} thumbnails={thumbnails} canEdit={canEdit} />
       ) : null}
 
       {/* Upload d'images */}
@@ -118,27 +121,41 @@ export function MediaPanel({
 // Grille de médias existants avec miniatures
 // ---------------------------------------------------------------------------
 
-function MediaGrid({ media, canEdit }: { media: MediaRow[]; canEdit: boolean }) {
+function MediaGrid({
+  media,
+  thumbnails,
+  canEdit,
+}: {
+  media: MediaRow[];
+  thumbnails?: Map<string, string>;
+  canEdit: boolean;
+}) {
   return (
     <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
       {media.map((item) => (
-        <MediaCard key={item.id} media={item} canEdit={canEdit} />
+        <MediaCard key={item.id} media={item} thumbnail={thumbnails?.get(item.id)} canEdit={canEdit} />
       ))}
     </div>
   );
 }
 
-function MediaCard({ media, canEdit }: { media: MediaRow; canEdit: boolean }) {
+function MediaCard({
+  media,
+  thumbnail,
+  canEdit,
+}: {
+  media: MediaRow;
+  thumbnail?: string;
+  canEdit: boolean;
+}) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
 
   const isPrimaryImage = media.mediaType === "IMAGE" && media.visibility === "PUBLIC";
-  const thumbnailSrc =
-    media.mediaType === "IMAGE" && media.storagePath
-      ? `/api/media/${media.id}?v=thumb`
-      : null;
+  // Vignette signée côté serveur : la route publique `/api/media` refuse un véhicule non publié.
+  const thumbnailSrc = media.mediaType === "IMAGE" ? (thumbnail ?? null) : null;
 
   async function run(action: (formData: FormData) => Promise<AdminActionState>, field: string, value: string) {
     if (pending) return;
