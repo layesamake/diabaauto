@@ -124,6 +124,35 @@ export function createVehicleMediaRepository(
     await client.vehicleMedia.delete({ where: { id }, select: { id: true } });
   }
 
+  async function updateFiles(
+    id: string,
+    files: { storagePath: string; thumbnailPath: string | null },
+  ): Promise<MediaRow> {
+    try {
+      const row = await client.vehicleMedia.update({
+        where: { id },
+        data: { storagePath: files.storagePath, thumbnailPath: files.thumbnailPath },
+        select: vehicleMediaSelect,
+      });
+
+      return toVehicleMediaRecord(row);
+    } catch (error) {
+      const translated = translatePrismaError(error, "Chemin de stockage déjà utilisé.");
+      if (translated) throw translated;
+      throw error;
+    }
+  }
+
+  async function lockVehicle(vehicleId: string): Promise<boolean> {
+    // Verrou de ligne tenu jusqu'à la fin de la transaction : sérialise les ajouts de médias
+    // d'un même véhicule. Hors transaction il serait relâché aussitôt, donc inutile (non utilisé ainsi).
+    const rows = await client.$queryRaw<Array<{ id: string }>>`
+      SELECT id::text AS id FROM vehicles WHERE id = ${vehicleId}::uuid FOR UPDATE
+    `;
+
+    return rows.length > 0;
+  }
+
   return {
     findById,
     listByVehicle,
@@ -132,6 +161,8 @@ export function createVehicleMediaRepository(
     demotePrimary,
     setDisplayOrder,
     remove,
+    updateFiles,
+    lockVehicle,
     // Transaction de premier niveau uniquement (voir `repositories/vehicle.repository.ts`).
     transaction: (fn) => prisma.$transaction(async (tx) => fn(createVehicleMediaRepository(tx))),
   };

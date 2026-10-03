@@ -6,8 +6,13 @@ import { getCurrentActor } from "@/lib/auth/session";
 import { AppError, newCorrelationId, ok, toErrorResponse, type ErrorEnvelope } from "@/lib/errors";
 import { addMedia, removeMedia, reorderMedia, setPrimaryMedia } from "@/services/media.service";
 import {
-  uploadVehicleImages,
+  addImagesFromUrls,
+  finalizeImageUploads,
+  reoptimizeImage,
+  requestImageUploads,
+  type ReoptimizeResult,
   type UploadResult,
+  type UploadTargets,
 } from "@/services/image-upload.service";
 import { setVehiclePrice } from "@/services/pricing.service";
 import {
@@ -314,64 +319,126 @@ export async function setPrimaryMediaAction(formData: FormData): Promise<AdminAc
   }
 }
 
-/**
- * Upload groupé d'images (jusqu'à 5 par véhicule).
- *
- * Le `FormData` peut contenir :
- * - `vehicleId` (requis)
- * - `files` (File[]) — fichiers sélectionnés sur l'ordinateur
- * - `urls` (string) — JSON array d'URLs d'images à récupérer côté serveur
- *
- * Chaque image est optimisée (WebP, redimensionnée) et un thumbnail est généré avant stockage.
- * Retourne un résultat détaillé par image dans `data.results`.
- */
-export type UploadActionState =
+// ---------------------------------------------------------------------------
+// Images : envoi direct vers le stockage, puis optimisation côté serveur
+// ---------------------------------------------------------------------------
+//
+// Aucun fichier ne transite par ces actions : les Server Actions ont une limite de corps de requête
+// (1 Mo par défaut dans Next.js, environ 4,5 Mo sur Vercel) bien inférieure au poids d'une photo.
+// Le navigateur dépose le fichier directement dans le bucket via une cible signée, puis demande au
+// serveur de le finaliser (optimisation, enregistrement, suppression du fichier temporaire).
+
+export type ImageUploadTargetsState = { data: UploadTargets } | { error: AdminActionError };
+export type ImageResultsState =
   | { data: { message: string; results: UploadResult[] } }
   | { error: AdminActionError };
+export type ReoptimizeActionState =
+  | { data: { message: string; result: ReoptimizeResult } }
+  | { error: AdminActionError };
 
-export async function uploadVehicleImagesAction(formData: FormData): Promise<UploadActionState> {
+/** Compat : ancien nom du type de retour de l'upload groupé. */
+export type UploadActionState = ImageResultsState;
+
+function resultsMessage(results: UploadResult[]): string {
+  const successCount = results.filter((result) => result.ok).length;
+  return successCount === results.length
+    ? `${successCount} image(s) ajoutée(s).`
+    : `${successCount} / ${results.length} image(s) ajoutée(s). Certaines ont échoué.`;
+}
+
+/** Étape 1 : obtient des cibles d'envoi signées pour `count` fichiers. */
+export async function requestImageUploadsAction(formData: FormData): Promise<ImageUploadTargetsState> {
   const actor = await getCurrentActor();
   const vehicleId = requiredText(formData, "vehicleId");
+  const count = Number.parseInt(readString(formData, "count") ?? "", 10);
 
-  // Collecter les fichiers
-  const files: File[] = [];
-  const rawFiles = formData.getAll("files");
-  for (const entry of rawFiles) {
-    if (entry instanceof File && entry.size > 0) {
-      files.push(entry);
-    }
-  }
-
-  // Collecter les URLs
-  let urls: string[] = [];
-  const rawUrls = readString(formData, "urls");
-  if (rawUrls) {
-    try {
-      const parsed = JSON.parse(rawUrls);
-      if (Array.isArray(parsed)) {
-        urls = parsed.filter((u): u is string => typeof u === "string" && u.trim().length > 0);
-      }
-    } catch {
-      return { error: { code: "VALIDATION", message: "Format d'URLs invalide." } };
-    }
-  }
-
-  if (files.length === 0 && urls.length === 0) {
+  if (!Number.isInteger(count) || count < 1) {
     return { error: { code: "VALIDATION", message: "Aucune image fournie." } };
   }
 
   try {
-    const results = await uploadVehicleImages(actor, vehicleId, { files, urls });
-    const successCount = results.filter((r) => r.ok).length;
+    return { data: await requestImageUploads(actor, vehicleId, count) };
+  } catch (error) {
+    return failure(error) as { error: AdminActionError };
+  }
+}
 
+/** Étape 3 : optimise et enregistre les fichiers déposés. `items` : JSON `[{ path, name }]`. */
+export async function finalizeImageUploadsAction(formData: FormData): Promise<ImageResultsState> {
+  const actor = await getCurrentActor();
+  const vehicleId = requiredText(formData, "vehicleId");
+  const rawItems = requiredText(formData, "items");
+
+  let items: Array<{ path: string; name?: string }> = [];
+  try {
+    const parsed: unknown = JSON.parse(rawItems);
+    if (Array.isArray(parsed)) {
+      items = parsed
+        .filter(
+          (entry): entry is { path: string; name?: string } =>
+            typeof entry === "object" && entry !== null && typeof (entry as { path?: unknown }).path === "string",
+        )
+        .map((entry) => ({
+          path: entry.path,
+          name: typeof entry.name === "string" ? entry.name : undefined,
+        }));
+    }
+  } catch {
+    return { error: { code: "VALIDATION", message: "Liste de fichiers invalide." } };
+  }
+
+  try {
+    const results = await finalizeImageUploads(actor, vehicleId, items);
     revalidatePath(`${VEHICLE_LIST}/${vehicleId}`);
+    return { data: { message: resultsMessage(results), results } };
+  } catch (error) {
+    return failure(error) as { error: AdminActionError };
+  }
+}
+
+/** Ajout d'images par URL (téléchargées côté serveur). `urls` : JSON array de chaînes. */
+export async function addImageUrlsAction(formData: FormData): Promise<ImageResultsState> {
+  const actor = await getCurrentActor();
+  const vehicleId = requiredText(formData, "vehicleId");
+  const rawUrls = requiredText(formData, "urls");
+
+  let urls: string[] = [];
+  try {
+    const parsed: unknown = JSON.parse(rawUrls);
+    if (Array.isArray(parsed)) {
+      urls = parsed.filter((url): url is string => typeof url === "string" && url.trim().length > 0);
+    }
+  } catch {
+    return { error: { code: "VALIDATION", message: "Format d'URLs invalide." } };
+  }
+
+  try {
+    const results = await addImagesFromUrls(actor, vehicleId, urls);
+    revalidatePath(`${VEHICLE_LIST}/${vehicleId}`);
+    return { data: { message: resultsMessage(results), results } };
+  } catch (error) {
+    return failure(error) as { error: AdminActionError };
+  }
+}
+
+/** Repasse une image déjà enregistrée dans le pipeline d'optimisation. */
+export async function reoptimizeMediaAction(formData: FormData): Promise<ReoptimizeActionState> {
+  const actor = await getCurrentActor();
+  const mediaId = requiredText(formData, "mediaId");
+
+  try {
+    const result = await reoptimizeImage(actor, mediaId);
+    if (!result.ok) {
+      return { error: { code: "VALIDATION", message: result.error } };
+    }
+
+    revalidatePath(VEHICLE_DETAIL_PATTERN, "page");
     return {
       data: {
-        message:
-          successCount === results.length
-            ? `${successCount} image(s) téléversée(s).`
-            : `${successCount} / ${results.length} image(s) téléversée(s). Certaines ont échoué.`,
-        results,
+        message: result.changed
+          ? "Image ré-optimisée."
+          : "Cette image est déjà optimisée : aucun gain à attendre.",
+        result,
       },
     };
   } catch (error) {

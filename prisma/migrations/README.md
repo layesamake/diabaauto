@@ -22,6 +22,7 @@ policies, buckets Storage) est écrit à la main dans les mêmes migrations, sou
 | M04 | `20260928120300_m04_journaux_audit_index` | `order_events`, `audit_logs`, `CHECK` sur les montants des tables canoniques (`vehicle_prices`, `orders`, `custom_requests`) (T04), index de clés étrangères et index partiel catalogue `WHERE is_published = true` (T06), audit append-only (T05) |
 | M05 | `20260928120400_m05_rls_storage` | trigger `auth.users` + `handle_new_auth_user()` + `repair_orphan_profiles()` (T03), RLS (33 tables), 25 policies, `GRANT SELECT` colonne par colonne sur `vehicles` (colonnes internes exclues), 4 buckets Storage |
 | M09 | `20261003000000_m09_bucket_images_prive` | bucket Storage `vehicle-images` passé en PRIVÉ ; images servies par la route `/api/media/[id]` (URL signée courte). Déployer le code avant d'appliquer la migration |
+| M10 | `20261003120000_m10_limite_images_vehicule` | déclencheur SQL : au plus 5 images par véhicule (vidéos hors quota), insertions concurrentes sérialisées par verrou de ligne. Aucune donnée modifiée ; sans dépendance de déploiement avec le code |
 
 Tous les noms suivent le contrat canonique (`docs/12_Schema_Prisma_final_propose.docx`) : colonnes `snake_case`,
 rôles du personnel N:N via `staff_roles`, publication distincte du statut commercial (`vehicles.is_published`).

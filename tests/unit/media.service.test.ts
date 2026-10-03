@@ -7,12 +7,13 @@ import {
   parseMedia,
   removeMedia,
   reorderMedia,
+  replaceMediaFiles,
   selectPrimaryMedia,
   setPrimaryMedia,
   type MediaRow,
-  type VehicleMediaRepository,
 } from "@/services/media.service";
 import { staffActor, visitorActor } from "@/tests/unit/support/actors";
+import { fakeMediaRepository } from "@/tests/unit/support/media-repository.fake";
 
 const VEHICLE = "11111111-1111-4111-8111-111111111111";
 
@@ -24,55 +25,6 @@ function uuid(n: number): string {
 const M1 = "aaaaaaaa-0000-4000-8000-000000000001";
 const M2 = "aaaaaaaa-0000-4000-8000-000000000002";
 const M3 = "aaaaaaaa-0000-4000-8000-000000000003";
-
-/** Repository en mémoire : reproduit la démarcation du principal et l'ordre d'affichage. */
-function fakeMediaRepository(initial: MediaRow[] = []) {
-  let items = [...initial];
-  let counter = 0;
-
-  const repository: VehicleMediaRepository = {
-    async findById(id) {
-      return items.find((item) => item.id === id) ?? null;
-    },
-    async listByVehicle(vehicleId) {
-      return items
-        .filter((item) => item.vehicleId === vehicleId)
-        .sort((left, right) => left.displayOrder - right.displayOrder);
-    },
-    async create(input) {
-      const row: MediaRow = { id: uuid(++counter), ...input };
-      items.push(row);
-      return row;
-    },
-    async setPrimary(id, isPrimary) {
-      const index = items.findIndex((item) => item.id === id);
-      const current = items[index];
-      if (!current) throw new Error("media not found");
-      const updated = { ...current, isPrimary };
-      items[index] = updated;
-      return updated;
-    },
-    async demotePrimary(vehicleId, exceptId) {
-      items = items.map((item) =>
-        item.vehicleId === vehicleId && item.id !== exceptId ? { ...item, isPrimary: false } : item,
-      );
-    },
-    async setDisplayOrder(id, displayOrder) {
-      const index = items.findIndex((item) => item.id === id);
-      const current = items[index];
-      if (!current) throw new Error("media not found");
-      items[index] = { ...current, displayOrder };
-    },
-    async remove(id) {
-      items = items.filter((item) => item.id !== id);
-    },
-    async transaction(fn) {
-      return fn(repository);
-    },
-  };
-
-  return { repository, all: () => [...items] };
-}
 
 function media(overrides: Partial<MediaRow>): MediaRow {
   return {
@@ -279,5 +231,90 @@ describe("media service — réordonnancement", () => {
     await expect(
       reorderMedia(staffActor(), VEHICLE, [M1, "99999999-9999-4999-8999-999999999999"]),
     ).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+});
+
+describe("media service — limite de 5 images par véhicule", () => {
+  function fiveImages(): MediaRow[] {
+    return [1, 2, 3, 4, 5].map((n) =>
+      media({ id: uuid(100 + n), storagePath: `vehicles/${n}.webp`, displayOrder: n, isPrimary: n === 1 }),
+    );
+  }
+
+  it("accepte la 5e image puis refuse la 6e", async () => {
+    fake = fakeMediaRepository(fiveImages().slice(0, 4));
+    configureMediaRepository(fake.repository);
+
+    await expect(
+      addMedia(staffActor(), VEHICLE, { mediaType: "IMAGE", storagePath: "vehicles/5.webp" }),
+    ).resolves.toMatchObject({ id: expect.any(String) });
+
+    await expect(
+      addMedia(staffActor(), VEHICLE, { mediaType: "IMAGE", storagePath: "vehicles/6.webp" }),
+    ).rejects.toMatchObject({ code: "VALIDATION", message: expect.stringMatching(/5 images/) });
+
+    expect(fake.all().filter((item) => item.mediaType === "IMAGE")).toHaveLength(5);
+  });
+
+  it("ne compte pas les vidéos dans le quota d'images", async () => {
+    fake = fakeMediaRepository(fiveImages());
+    configureMediaRepository(fake.repository);
+
+    await expect(
+      addMedia(staffActor(), VEHICLE, { mediaType: "VIDEO", externalUrl: "https://example.com/a.mp4" }),
+    ).resolves.toMatchObject({ id: expect.any(String) });
+  });
+
+  it("libère une place quand une image est supprimée", async () => {
+    fake = fakeMediaRepository(fiveImages());
+    configureMediaRepository(fake.repository);
+
+    await removeMedia(staffActor(), uuid(105));
+    await expect(
+      addMedia(staffActor(), VEHICLE, { mediaType: "IMAGE", storagePath: "vehicles/new.webp" }),
+    ).resolves.toMatchObject({ id: expect.any(String) });
+  });
+
+  it("verrouille le véhicule avant de compter et refuse un véhicule inconnu", async () => {
+    fake = fakeMediaRepository([], [VEHICLE]);
+    configureMediaRepository(fake.repository);
+
+    await expect(
+      addMedia(staffActor(), VEHICLE, { mediaType: "IMAGE", storagePath: "vehicles/1.webp" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
+describe("media service — remplacement des fichiers (ré-optimisation)", () => {
+  it("conserve l'identifiant, l'ordre et le statut principal", async () => {
+    fake = fakeMediaRepository([media({ id: M1, isPrimary: true, displayOrder: 3 })]);
+    configureMediaRepository(fake.repository);
+
+    const updated = await replaceMediaFiles(staffActor(), M1, {
+      storagePath: "vehicles/new.webp",
+      thumbnailPath: "vehicles/thumbs/new.webp",
+    });
+
+    expect(updated).toMatchObject({
+      id: M1,
+      storagePath: "vehicles/new.webp",
+      thumbnailPath: "vehicles/thumbs/new.webp",
+      isPrimary: true,
+      displayOrder: 3,
+    });
+  });
+
+  it("refuse une vidéo, un média inconnu et un acteur sans droit d'édition", async () => {
+    fake = fakeMediaRepository([
+      media({ id: M2, mediaType: "VIDEO", storagePath: null, externalUrl: "https://example.com/a.mp4" }),
+    ]);
+    configureMediaRepository(fake.repository);
+
+    const files = { storagePath: "x.webp", thumbnailPath: null };
+    await expect(replaceMediaFiles(staffActor(), M2, files)).rejects.toMatchObject({ code: "VALIDATION" });
+    await expect(replaceMediaFiles(staffActor(), M3, files)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(replaceMediaFiles(staffActor(["vehicle.view"]), M2, files)).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
   });
 });
