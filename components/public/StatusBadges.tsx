@@ -60,20 +60,20 @@ export function cardBadges(vehicle: CatalogueCard): Badge[] {
   return badges;
 }
 
-/** Badges de la fiche : carte + éligibilité import Sénégal. */
+/**
+ * Badges de la fiche : carte + éligibilité import Sénégal.
+ *
+ * Seule une éligibilité CONFIRMÉE (`ELIGIBLE`) devient un badge, rassurant. « Non vérifiée »,
+ * « à vérifier » ou « non éligible » ne s'affichent pas en tête de fiche : un badge d'alerte sur une
+ * donnée purement administrative inquiéterait le visiteur sans l'informer. Le détail reste dans la
+ * section Éligibilité, qui n'apparaît elle-même que lorsqu'elle dit quelque chose d'utile.
+ */
 export function detailBadges(vehicle: CatalogueDetail): Badge[] {
   const badges = cardBadges(vehicle);
-  const eligibilityTone: BadgeTone =
-    vehicle.eligibilityStatus === "ELIGIBLE"
-      ? "success"
-      : vehicle.eligibilityStatus === "NOT_ELIGIBLE"
-        ? "danger"
-        : "warning";
 
-  badges.push({
-    label: fr.labels.eligibilityStatus[vehicle.eligibilityStatus],
-    tone: eligibilityTone,
-  });
+  if (vehicle.eligibilityStatus === "ELIGIBLE") {
+    badges.push({ label: fr.labels.eligibilityStatus.ELIGIBLE, tone: "success" });
+  }
 
   return badges;
 }
