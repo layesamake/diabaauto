@@ -307,19 +307,49 @@ describe("reoptimizeImage", () => {
     expect(mocks.files.has(updated?.thumbnailPath as string)).toBe(true);
   });
 
-  it("ne recompresse pas une image déjà optimisée", async () => {
+  it("ne recompresse pas une image déjà optimisée dont la vignette est à jour", async () => {
     const row = imageRow(1);
     useRepo([row]);
     const already = await sharp({ create: { width: 1200, height: 800, channels: 3, background: "#336699" } })
       .webp({ quality: 60 })
       .toBuffer();
     mocks.files.set(row.storagePath as string, already);
+    mocks.files.set(
+      row.thumbnailPath as string,
+      await sharp({ create: { width: 800, height: 600, channels: 3, background: "#336699" } }).webp().toBuffer(),
+    );
 
     const result = await reoptimizeImage(staffActor(), row.id);
 
     expect(result).toMatchObject({ ok: true, changed: false });
     expect(repo.all()[0]?.storagePath).toBe(row.storagePath);
-    expect(mocks.files.size).toBe(1);
+    expect(mocks.files.size).toBe(2);
+  });
+
+  it("régénère une vignette d'ancienne génération même si l'image principale n'a rien à gagner", async () => {
+    const row = imageRow(1);
+    useRepo([row]);
+    mocks.files.set(
+      row.storagePath as string,
+      await sharp({ create: { width: 1200, height: 800, channels: 3, background: "#336699" } })
+        .webp({ quality: 60 })
+        .toBuffer(),
+    );
+    // Vignette 400×300 : produite avant l'élargissement à 800 px.
+    mocks.files.set(
+      row.thumbnailPath as string,
+      await sharp({ create: { width: 400, height: 300, channels: 3, background: "#336699" } }).webp().toBuffer(),
+    );
+
+    const result = await reoptimizeImage(staffActor(), row.id);
+
+    expect(result).toMatchObject({ ok: true, changed: true });
+    const updated = repo.all()[0];
+    expect(updated?.thumbnailPath).not.toBe(row.thumbnailPath);
+    expect(mocks.files.has(row.thumbnailPath as string)).toBe(false);
+
+    const refreshed = mocks.files.get(updated?.thumbnailPath as string);
+    expect((await sharp(refreshed as Buffer).metadata()).width).toBe(800);
   });
 
   it("refuse une vidéo et un acteur sans droit d'édition", async () => {

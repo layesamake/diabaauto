@@ -10,7 +10,7 @@ import sharp, { type Metadata, type OutputInfo, type Sharp } from "sharp";
  *    recopiées : sharp ne les conserve que sur demande explicite (`withMetadata`).
  * 4. Redimensionnement : largeur max 1920 px (proportionnel, jamais d'agrandissement).
  * 5. Conversion WebP, qualité 80 puis 70 puis 60 jusqu'à passer sous 300 Ko.
- * 6. Génération d'une vignette 400 × 300 px (recadrage centré).
+ * 6. Génération d'une vignette 800 × 600 px (recadrage centré), servie par les cartes du catalogue.
  *
  * Le module est pur (pas de dépendance Storage/BDD) et testable unitairement.
  */
@@ -31,8 +31,13 @@ export const ACCEPTED_MIME_TYPES = new Set<string>(ACCEPTED_IMAGE_MIME_TYPES);
 const OPTIMIZED_MAX_WIDTH = 1920;
 /** Paliers de qualité essayés dans l'ordre ; le dernier est conservé même s'il dépasse la cible. */
 const QUALITY_STEPS = [80, 70, 60] as const;
-const THUMB_WIDTH = 400;
-const THUMB_HEIGHT = 300;
+/**
+ * Vignette : 800 × 600. Elle sert la carte du catalogue (4:3), affichée jusqu'à pleine largeur sur
+ * mobile — 400 px seraient flous sur un écran à forte densité. Reste ~4× plus légère que l'image
+ * pleine taille (1920 px), qui n'est chargée que sur la fiche.
+ */
+const THUMB_WIDTH = 800;
+const THUMB_HEIGHT = 600;
 const THUMB_QUALITY = 70;
 /** ~60 mégapixels : un capteur de 50 Mpx passe, une « bombe » de décompression est refusée. */
 const MAX_INPUT_PIXELS = 60_000_000;
@@ -40,7 +45,7 @@ const MAX_INPUT_PIXELS = 60_000_000;
 export type OptimizedImage = {
   /** Image optimisée en WebP. */
   optimized: Buffer;
-  /** Thumbnail 400×300 en WebP. */
+  /** Vignette 800×600 en WebP. */
   thumbnail: Buffer;
   /** Largeur de l'image optimisée. */
   width: number;
@@ -172,6 +177,22 @@ export async function optimizeImage(input: Buffer): Promise<ImageValidationResul
         message: err instanceof Error ? err.message : "Erreur de traitement inconnue.",
       },
     };
+  }
+}
+
+/**
+ * `true` si une vignette déjà stockée est plus étroite que le standard courant (`THUMB_WIDTH`).
+ *
+ * Les vignettes produites avant l'élargissement à 800 px seraient floues sur les cartes du
+ * catalogue : la ré-optimisation doit les régénérer même si l'image principale, elle, n'a rien à
+ * gagner. Un contenu illisible renvoie `true` : mieux vaut régénérer que laisser une vignette cassée.
+ */
+export async function isThumbnailOutdated(thumbnail: Buffer): Promise<boolean> {
+  try {
+    const { width } = await openImage(thumbnail).metadata();
+    return (width ?? 0) < THUMB_WIDTH;
+  } catch {
+    return true;
   }
 }
 

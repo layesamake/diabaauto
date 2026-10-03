@@ -252,11 +252,11 @@ export function toCatalogueOrderBy(sort: CatalogueSort): Prisma.VehicleOrderByWi
  * Tri par prix SERVIS AU VISITEUR (prix STANDARD actif), jamais par prix revendeur ; les véhicules
  * sans prix servi passent en fin de liste quel que soit le sens (contrat §A.3).
  */
-export function sortByStandardPrice(
-  rows: readonly CatalogueVehicleRow[],
+export function sortByStandardPrice<T extends { prices: VehiclePriceRow[] }>(
+  rows: readonly T[],
   sort: "price_asc" | "price_desc",
   now: Date,
-): CatalogueVehicleRow[] {
+): T[] {
   const direction = sort === "price_asc" ? 1 : -1;
 
   return [...rows].sort((left, right) => {
@@ -272,7 +272,7 @@ export function sortByStandardPrice(
   });
 }
 
-function standardAmountOf(row: CatalogueVehicleRow, now: Date): string | null {
+function standardAmountOf(row: { prices: VehiclePriceRow[] }, now: Date): string | null {
   const resolved = resolveFromRows(row.prices, { kind: "visitor" }, now);
   return resolved ? resolved.amount : null;
 }
@@ -294,14 +294,45 @@ export function createCatalogueRepository(
     const skip = (query.page - 1) * query.pageSize;
 
     if (query.sort === "price_asc" || query.sort === "price_desc") {
-      const rows = await client.vehicle.findMany({
+      // Le prix servi au visiteur dépend du profil, du type et de la fenêtre de validité : il n'est
+      // pas une colonne, donc PostgreSQL ne peut pas trier dessus (contrat §A.3). Le classement se
+      // fait donc ici — mais en deux temps, pour ne pas rapatrier tout le catalogue.
+      //
+      // 1. Lignes légères (identifiant + prix) de tous les véhicules correspondants. Ni médias, ni
+      //    jointures de référentiel : c'est ce qui pesait lourd quand le catalogue grandit.
+      // 2. Classement, découpe de la page, puis chargement complet des SEULS véhicules affichés.
+      //
+      // `orderBy` reste identique à l'ancien code : le tri JavaScript étant stable, les véhicules à
+      // prix égal gardent exactement le même ordre qu'avant.
+      const ranking = await client.vehicle.findMany({
         where,
-        select: catalogueVehicleSelect,
+        select: { id: true, prices: { where: { isActive: true }, select: vehiclePriceSelect } },
         orderBy: toCatalogueOrderBy("recent"),
       });
-      const sorted = sortByStandardPrice(rows.map(toCatalogueVehicleRow), query.sort, new Date());
 
-      return { items: sorted.slice(skip, skip + query.pageSize), total };
+      const sorted = sortByStandardPrice(
+        ranking.map((row) => ({ id: row.id, prices: row.prices.map(toVehiclePriceRow) })),
+        query.sort,
+        new Date(),
+      );
+
+      const pageIds = sorted.slice(skip, skip + query.pageSize).map((row) => row.id);
+      if (pageIds.length === 0) {
+        return { items: [], total };
+      }
+
+      const rows = await client.vehicle.findMany({
+        where: { id: { in: pageIds } },
+        select: catalogueVehicleSelect,
+      });
+
+      // `IN` ne garantit aucun ordre : on réapplique celui du classement.
+      const byId = new Map(rows.map((row) => [row.id, toCatalogueVehicleRow(row)]));
+      const items = pageIds
+        .map((id) => byId.get(id))
+        .filter((row): row is CatalogueVehicleRow => row !== undefined);
+
+      return { items, total };
     }
 
     const rows = await client.vehicle.findMany({

@@ -14,6 +14,7 @@ import { requireStaff } from "@/services/access.service";
 import type { Actor } from "@/services/identity.service";
 import {
   isAcceptedContentType,
+  isThumbnailOutdated,
   MAX_FILE_SIZE_BYTES,
   MAX_IMAGES_PER_VEHICLE,
   optimizeImage,
@@ -254,8 +255,17 @@ export async function reoptimizeImage(actor: Actor, mediaId: string): Promise<Re
       return { ok: false, error: describeOptimizationError(result.error) };
     }
 
+    // Une vignette d'ancienne génération (400 px) doit être refaite même quand l'image principale
+    // n'a plus rien à gagner : c'est elle que chargent les cartes du catalogue.
+    const thumbnailNeedsRefresh = media.thumbnailPath
+      ? await storage
+          .downloadFile(media.thumbnailPath, MAX_FILE_SIZE_BYTES)
+          .then(isThumbnailOutdated)
+          .catch(() => true)
+      : true;
+
     const { data } = result;
-    if (data.sizeBytes >= original.byteLength * MIN_GAIN_RATIO) {
+    if (data.sizeBytes >= original.byteLength * MIN_GAIN_RATIO && !thumbnailNeedsRefresh) {
       return { ok: true, changed: false, beforeBytes: original.byteLength };
     }
 

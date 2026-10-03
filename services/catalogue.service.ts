@@ -58,7 +58,16 @@ export type CataloguePrice = {
   anomaly?: "MISSING_RESELLER_PRICE";
 };
 
-export type CatalogueImage = { url: string; alt: string };
+/**
+ * Image principale d'un véhicule.
+ * - `url` : image pleine taille (1920 px) — fiche véhicule, `og:image`, partage.
+ * - `thumbnailUrl` : vignette (800 px) — cartes du catalogue. `null` si le média n'en a pas
+ *   (média externe, ou image enregistrée avant la génération automatique de vignettes).
+ *
+ * Deux champs plutôt qu'un seul : une carte qui charge l'image pleine taille coûte ~10× son poids
+ * utile, et une métadonnée de partage qui pointe une vignette est trop petite pour les réseaux.
+ */
+export type CatalogueImage = { url: string; alt: string; thumbnailUrl: string | null };
 
 export type CatalogueCard = {
   id: string;
@@ -361,16 +370,24 @@ export function toPrimaryImage(
   row: CatalogueVehicleRow,
   config?: MediaConfig,
 ): CatalogueImage | null {
+  const resolved = config ?? defaultMediaConfig();
+
+  const build = (media: CatalogueMediaRow): CatalogueImage | null => {
+    const url = resolvePublicMediaUrl(media, resolved);
+    if (!url) return null;
+    return { url, alt: imageAlt(row), thumbnailUrl: toThumbnailUrl(media, resolved) };
+  };
+
   for (const media of row.media) {
     if (!media.isPrimary || media.mediaType !== "IMAGE" || media.visibility !== "PUBLIC") continue;
-    const url = resolvePublicMediaUrl(media, config);
-    if (url) return { url, alt: imageAlt(row) };
+    const image = build(media);
+    if (image) return image;
   }
 
   for (const media of row.media) {
     if (media.mediaType !== "IMAGE" || media.visibility !== "PUBLIC") continue;
-    const url = resolvePublicMediaUrl(media, config);
-    if (url) return { url, alt: imageAlt(row) };
+    const image = build(media);
+    if (image) return image;
   }
 
   return null;
