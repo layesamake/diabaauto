@@ -5,6 +5,7 @@ import {
   resetWorklistCounter,
   type WorklistCounts,
 } from "@/services/admin-worklist.service";
+import { isContactTab } from "@/services/contact-list.service";
 import { staffActor, visitorActor } from "@/tests/unit/support/actors";
 
 /**
@@ -143,5 +144,20 @@ describe("listWorklist — instant de référence", () => {
     await listWorklist(staffActor(), instant);
 
     expect(dernierNow).toBe(instant);
+  });
+});
+
+describe("listWorklist — liens vers Contacts", () => {
+  it("n'envoie jamais vers un onglet de Contacts qui n'existe pas", async () => {
+    sert(compte({ requestsReceived: 1, leadsToFollowUp: 1, leadsUnassigned: 1, resellerApplicationsPending: 1 }));
+
+    const items = await listWorklist(staffActor());
+    const versContacts = items.filter((item) => item.href.startsWith("/admin/contacts"));
+
+    expect(versContacts).toHaveLength(4);
+    for (const item of versContacts) {
+      const onglet = new URL(item.href, "https://exemple.test").searchParams.get("onglet");
+      expect(isContactTab(onglet), item.href).toBe(true);
+    }
   });
 });

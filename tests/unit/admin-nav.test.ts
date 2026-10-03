@@ -15,7 +15,7 @@ import { ALL_PERMISSIONS } from "@/tests/unit/support/actors";
  */
 
 function toutesLesEntrees() {
-  return ADMIN_NAV.flatMap((group) => group.entries.flatMap((entry) => [entry, ...(entry.children ?? [])]));
+  return ADMIN_NAV.flatMap((group) => [...group.entries]);
 }
 
 describe("navigation — catalogue", () => {
@@ -71,6 +71,13 @@ describe("navigation — permissions", () => {
 
     for (const lien of allowedAdminLinks(permissions)) {
       // « Mon compte » est ouvert à tout membre du personnel ; le reste exige sa permission.
+      if (lien.anyOf) {
+        expect(
+          lien.anyOf.some((permission) => permissions.includes(permission)),
+          lien.label,
+        ).toBe(true);
+        continue;
+      }
       if (lien.permission === null) continue;
       expect(permissions, lien.label).toContain(lien.permission);
     }
@@ -85,13 +92,20 @@ describe("navigation — permissions", () => {
     expect(labels).not.toContain("Contacts");
   });
 
-  it("mène Contacts au premier écran permis, pas à un écran refusé", () => {
+  it("garde Contacts dès qu'une seule de ses sources est lisible", () => {
     // Un acteur qui voit les revendeurs mais ni les prospects, ni les demandes, ni les clients.
     const nav = allowedAdminNav(["vehicle.view", "reseller.view"]);
     const contacts = nav.flatMap((group) => group.entries).find((entry) => entry.label === "Contacts");
 
-    expect(contacts?.href).toBe("/admin/revendeurs");
-    expect(contacts?.children?.map((child) => child.label)).toEqual(["Revendeurs"]);
+    expect(contacts?.href).toBe("/admin/contacts");
+  });
+
+  it("ne propose plus les quatre anciennes listes comme entrées de menu", () => {
+    const hrefs = toutesLesEntrees().map((entry) => entry.href);
+
+    for (const ancien of ["/admin/prospects", "/admin/demandes", "/admin/clients", "/admin/revendeurs"]) {
+      expect(hrefs, ancien).not.toContain(ancien);
+    }
   });
 
   it("ne garde que « Mon compte » pour un acteur sans aucune permission", () => {

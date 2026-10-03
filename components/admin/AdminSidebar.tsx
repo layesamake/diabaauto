@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { allowedAdminNav, type AdminNavEntry } from "@/components/admin/admin-nav";
+import { allowedAdminNav } from "@/components/admin/admin-nav";
 import { RubricIcon } from "@/components/admin/RubricIcon";
 import type { PermissionCode } from "@/services/permissions.service";
 
@@ -12,10 +12,6 @@ import type { PermissionCode } from "@/services/permissions.service";
  * L'écran courant est déduit du chemin, et non d'une propriété à passer dans chaque page : une page
  * ajoutée plus tard est marquée sans qu'on y pense, et aucune ne peut mentir sur l'endroit où elle
  * se trouve.
- *
- * Les écrans rattachés à « Contacts » restent visibles en permanence : réduire le nombre d'entrées
- * de premier rang suffit à clarifier, cacher des liens derrière un dépli ne ferait qu'ajouter un
- * clic.
  */
 export function AdminSidebar({ permissions }: { permissions: readonly PermissionCode[] }) {
   const pathname = usePathname();
@@ -25,9 +21,13 @@ export function AdminSidebar({ permissions }: { permissions: readonly Permission
   const estCourant = (href: string): boolean =>
     href === "/admin" ? pathname === "/admin" : pathname === href || pathname.startsWith(`${href}/`);
 
-  /** Un parent s'allume quand on est sur l'un de ses écrans. */
-  const contientCourant = (entry: AdminNavEntry): boolean =>
-    estCourant(entry.href) || (entry.children ?? []).some((child) => estCourant(child.href));
+  /**
+   * « Contacts » reste allumé sur les écrans d'origine qu'il réunit (fiche prospect, client…) : on y
+   * arrive depuis la liste, et le menu doit continuer à dire où l'on est.
+   */
+  const estSurContacts = (href: string): boolean =>
+    href === "/admin/contacts" &&
+    ["/admin/prospects", "/admin/demandes", "/admin/clients", "/admin/revendeurs"].some(estCourant);
 
   return (
     <nav
@@ -51,7 +51,7 @@ export function AdminSidebar({ permissions }: { permissions: readonly Permission
 
           <ul className="flex list-none flex-col gap-1 p-0">
             {group.entries.map((entry) => {
-              const actif = contientCourant(entry);
+              const actif = estCourant(entry.href) || estSurContacts(entry.href);
 
               return (
                 <li key={entry.label}>
@@ -68,27 +68,6 @@ export function AdminSidebar({ permissions }: { permissions: readonly Permission
                     <RubricIcon name={entry.icon} className="h-5 w-5 flex-none" />
                     <span>{entry.label}</span>
                   </Link>
-
-                  {entry.children && entry.children.length > 0 ? (
-                    <ul className="mb-1 ml-[30px] mt-1 flex list-none flex-col gap-0.5 border-l border-white/15 p-0 pl-3">
-                      {entry.children.map((child) => (
-                        <li key={child.href}>
-                          <Link
-                            href={child.href}
-                            aria-current={estCourant(child.href) ? "page" : undefined}
-                            title={child.description}
-                            className={`block rounded-md px-2.5 py-2 text-[13px] no-underline ${
-                              estCourant(child.href)
-                                ? "bg-white/15 font-semibold text-white"
-                                : "text-[#B9D2EF] hover:bg-white/10 hover:text-white"
-                            }`}
-                          >
-                            {child.label}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
                 </li>
               );
             })}
