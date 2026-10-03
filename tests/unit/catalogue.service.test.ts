@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Prisma } from "@prisma/client";
 import { AppError } from "@/lib/errors";
-import { DEFAULT_VEHICLE_IMAGE_BUCKET } from "@/lib/storage/vehicle-storage";
 import {
   catalogueMediaSelect,
   catalogueVehicleSelect,
@@ -155,10 +154,11 @@ describe("resolvePublicMediaUrl (contrat §3.7)", () => {
     ).toBe("https://cdn.example.test/video.mp4");
   });
 
-  it("résout le chemin de stockage dans le bucket public configuré", () => {
+  it("sert un fichier du bucket privé par la route serveur /api/media/<id>", () => {
     expect(
       resolvePublicMediaUrl(
         {
+          id: "11111111-1111-4111-8111-111111111111",
           externalUrl: null,
           storagePath: "/byd/seal 1.jpg",
           visibility: "PUBLIC",
@@ -166,22 +166,44 @@ describe("resolvePublicMediaUrl (contrat §3.7)", () => {
         },
         { supabaseUrl: "https://projet.supabase.co/", bucket: "vehicle-images" },
       ),
-    ).toBe("https://projet.supabase.co/storage/v1/object/public/vehicle-images/byd/seal%201.jpg");
+    ).toBe("/api/media/11111111-1111-4111-8111-111111111111");
   });
 
-  it("utilise le bucket par défaut et retourne null sans configuration de stockage", () => {
+  it("désigne la vignette par ?v=thumb et ne révèle jamais l'adresse du stockage", () => {
+    const url = resolvePublicMediaUrl(
+      {
+        id: "11111111-1111-4111-8111-111111111111",
+        externalUrl: null,
+        storagePath: "byd/seal-thumb.jpg",
+        visibility: "PUBLIC",
+        mediaType: "IMAGE",
+        variant: "thumb",
+      },
+      { supabaseUrl: "https://projet.supabase.co" },
+    );
+
+    expect(url).toBe("/api/media/11111111-1111-4111-8111-111111111111?v=thumb");
+    expect(url).not.toContain("supabase");
+    expect(url).not.toContain("storage/v1/object/public");
+  });
+
+  it("retourne null sans identifiant de média ou sans configuration de stockage", () => {
     expect(
       resolvePublicMediaUrl(
         { externalUrl: null, storagePath: "byd/seal.jpg", visibility: "PUBLIC", mediaType: "IMAGE" },
         { supabaseUrl: "https://projet.supabase.co" },
       ),
-    ).toBe(
-      `https://projet.supabase.co/storage/v1/object/public/${DEFAULT_VEHICLE_IMAGE_BUCKET}/byd/seal.jpg`,
-    );
+    ).toBeNull();
 
     expect(
       resolvePublicMediaUrl(
-        { externalUrl: null, storagePath: "byd/seal.jpg", visibility: "PUBLIC", mediaType: "IMAGE" },
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          externalUrl: null,
+          storagePath: "byd/seal.jpg",
+          visibility: "PUBLIC",
+          mediaType: "IMAGE",
+        },
         { supabaseUrl: null, bucket: "vehicle-images" },
       ),
     ).toBeNull();

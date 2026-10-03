@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AppError } from "@/lib/errors";
-import { DEFAULT_VEHICLE_IMAGE_BUCKET, readStorageConfig } from "@/lib/storage/vehicle-storage";
+import { readStorageConfig } from "@/lib/storage/vehicle-storage";
 import { createCatalogueRepository } from "@/repositories/catalogue.repository";
 import { resolveFromRows, type PricingActor } from "@/services/pricing.service";
 import type { Actor } from "@/services/identity.service";
@@ -277,17 +277,24 @@ export function toCatalogueListQuery(filters: CatalogueFilters): CatalogueListQu
 // Médias publics
 // ---------------------------------------------------------------------------
 
+/** Préfixe de la route serveur qui sert les médias du bucket privé (redirection vers URL signée). */
+export const MEDIA_ROUTE_PREFIX = "/api/media";
+
 /**
  * URL publique d'un média (contrat §3.7). UNE seule fonction construit une URL publique :
- * `externalUrl` prime, sinon URL publique du bucket de stockage, sinon `null`. Un média non PUBLIC
- * ne produit JAMAIS d'URL.
+ * `externalUrl` prime ; sinon, pour un fichier du bucket de stockage, l'URL de la route serveur
+ * `/api/media/<id>` (le bucket `vehicle-images` est PRIVÉ : la route vérifie que la fiche est publiée
+ * puis redirige vers une URL signée de courte durée) ; sinon `null`. Un média non PUBLIC ne produit
+ * JAMAIS d'URL. `variant: "thumb"` désigne la vignette du média (`?v=thumb`).
  */
 export function resolvePublicMediaUrl(
   media: {
+    id?: string;
     externalUrl: string | null;
     storagePath: string | null;
     visibility: "PUBLIC" | "PRIVATE" | "SHARE_ON_REQUEST";
     mediaType: "IMAGE" | "VIDEO";
+    variant?: "full" | "thumb";
   },
   config?: { supabaseUrl?: string | null; bucket?: string },
 ): string | null {
@@ -305,20 +312,19 @@ export function resolvePublicMediaUrl(
     return null;
   }
 
+  // Stockage non configuré : aucune image servable (même comportement qu'avant).
   const resolved = config ?? defaultMediaConfig();
-  const base = resolved.supabaseUrl?.trim();
-  if (!base) {
+  if (!resolved.supabaseUrl?.trim()) {
     return null;
   }
 
-  const bucket = resolved.bucket?.trim() || DEFAULT_VEHICLE_IMAGE_BUCKET;
-  const encoded = path
-    .replace(/^\/+/, "")
-    .split("/")
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
+  const id = media.id?.trim();
+  if (!id) {
+    return null;
+  }
 
-  return `${base.replace(/\/+$/, "")}/storage/v1/object/public/${bucket}/${encoded}`;
+  const suffix = media.variant === "thumb" ? "?v=thumb" : "";
+  return `${MEDIA_ROUTE_PREFIX}/${encodeURIComponent(id)}${suffix}`;
 }
 
 function defaultMediaConfig(): { supabaseUrl: string | null; bucket: string } {
@@ -331,10 +337,12 @@ function toThumbnailUrl(media: CatalogueMediaRow, config: MediaConfig): string |
   if (!media.thumbnailPath) return null;
   return resolvePublicMediaUrl(
     {
+      id: media.id,
       externalUrl: null,
       storagePath: media.thumbnailPath,
       visibility: media.visibility,
       mediaType: media.mediaType,
+      variant: "thumb",
     },
     config,
   );

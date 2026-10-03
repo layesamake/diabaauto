@@ -72,6 +72,12 @@ export const fr = {
     transmissionAll: "Toutes les boîtes",
     conditionAll: "Tous les états",
     locationAll: "Toutes les localisations",
+    locationQuestion: "Où se trouve le véhicule",
+    locationShortAll: "Tous",
+    electricOnly: "Électriques uniquement",
+    moreFilters: "Plus de filtres",
+    lessFilters: "Moins de filtres",
+    searchSubmit: "Lancer la recherche",
     emptyTitle: "Aucun véhicule ne correspond à votre recherche",
     emptyBody:
       "Élargissez les critères ou réinitialisez les filtres pour afficher davantage de véhicules.",
@@ -211,6 +217,13 @@ export function formatResultCount(count: number): string {
   const formatted = new Intl.NumberFormat("fr-FR").format(count);
 
   return count === 1 ? `${formatted} véhicule trouvé` : `${formatted} véhicules trouvés`;
+}
+
+/** Libellé du bouton de filtre : « Voir 4 véhicules » (singulier à 0 et 1, règle française). */
+export function formatViewVehicles(count: number): string {
+  const formatted = new Intl.NumberFormat("fr-FR").format(count);
+
+  return count <= 1 ? `Voir ${formatted} véhicule` : `Voir ${formatted} véhicules`;
 }
 
 /** Date de publication au format français. */

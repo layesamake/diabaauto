@@ -118,6 +118,7 @@ export default async function BrandPage({ params, searchParams }: PageProps) {
           basePath={basePath}
           idPrefix="marque"
           hideBrand
+          resultCount={catalogue.status === "ok" ? catalogue.value.total : undefined}
         />
       </div>
 

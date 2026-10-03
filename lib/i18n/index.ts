@@ -10,6 +10,7 @@ export {
   formatMileage,
   formatPublishedDate,
   formatResultCount,
+  formatViewVehicles,
   type Messages,
 } from "./fr";
 

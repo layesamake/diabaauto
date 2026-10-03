@@ -101,7 +101,11 @@ export default async function CataloguePage({ searchParams }: PageProps) {
 
       {facets.status === "ok" ? (
         <div className="mt-6 flex flex-col gap-4">
-          <CatalogueFilterForm facets={facets.value} initial={filters} />
+          <CatalogueFilterForm
+            facets={facets.value}
+            initial={filters}
+            resultCount={catalogue.status === "ok" ? catalogue.value.total : undefined}
+          />
           <div className="flex justify-end">
             <SaveSearchButton filters={filters} isAuthenticated={favoriteState.isAuthenticated} />
           </div>

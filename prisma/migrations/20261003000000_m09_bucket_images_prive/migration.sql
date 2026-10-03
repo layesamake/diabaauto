@@ -1,0 +1,17 @@
+-- ============================================================================
+-- Diaba Auto - M09 : bucket Storage `vehicle-images` PRIVÉ
+-- ============================================================================
+-- Un bucket marqué public expose TOUS ses objets en lecture anonyme via
+-- /storage/v1/object/public/vehicle-images/..., SANS passer par la RLS : l'image d'un véhicule en
+-- brouillon ou archivé était lisible par quiconque connaissait son chemin (audit sécurité, M05).
+--
+-- Le bucket devient privé. Les images sont désormais servies par la route applicative
+-- `/api/media/[id]`, qui vérifie la publication de la fiche puis redirige vers une URL signée de
+-- courte durée (STORAGE_SIGNED_URL_TTL_SECONDS).
+--
+-- ORDRE DE DÉPLOIEMENT : déployer d'abord le code (route /api/media), appliquer cette migration
+-- ensuite. Appliquée avant, les anciennes URLs publiques répondent 400/404 jusqu'au déploiement.
+--
+-- Idempotente. Les policies storage_vehicle_media_read (M05) sont conservées : elles bornent l'accès
+-- via l'API Storage authentifiée aux seuls médias PUBLICS de fiches publiées.
+UPDATE storage.buckets SET public = false WHERE id = 'vehicle-images';
