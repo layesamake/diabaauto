@@ -18,6 +18,29 @@ import type { RubricIconName } from "@/components/admin/rubric-icons";
 
 /** Tracés sur une grille 24×24, chaque clé de `RubricIconName` ayant le sien. */
 const PATHS: Record<RubricIconName, ReactNode> = {
+  // La journée : une courbe d'activité, ce qui bouge maintenant.
+  aujourdhui: (
+    <>
+      <path d="M3 12h4l3 8 4-16 3 8h4" />
+    </>
+  ),
+  // Les contacts : deux personnes, dont une au second plan.
+  contacts: (
+    <>
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3.5 19a5.5 5.5 0 0 1 11 0" />
+      <path d="M17 11.5a2.7 2.7 0 1 0 0-5.4" />
+      <path d="M18 19a4.8 4.8 0 0 0-2.2-4" />
+    </>
+  ),
+  // Les réglages : un curseur que l'on déplace rarement.
+  reglages: (
+    <>
+      <path d="M4 7h11M19 7h1M4 17h3M11 17h9" />
+      <circle cx="17" cy="7" r="2.2" />
+      <circle cx="9" cy="17" r="2.2" />
+    </>
+  ),
   // Un véhicule : caisse + cabine + deux roues.
   vehicules: (
     <>
