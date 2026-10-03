@@ -78,9 +78,11 @@ export function VehiclePreviewCard({
         Rendu indicatif réservé au back-office : la mise en page du site public peut différer.
       </p>
 
-      <div className="mt-4 grid gap-6 lg:grid-cols-2">
+      <div className="mt-4 flex flex-col gap-6">
         <div>
-          <h3 className="text-xl font-bold text-[#011D4F]">{vehicle.title}</h3>
+          <h3 title={vehicle.title} className="truncate text-lg font-bold text-[#011D4F]">
+            {vehicle.title}
+          </h3>
           <p className="mt-1 text-sm text-slate-600">Référence {vehicle.reference}</p>
           <p className="mt-3 text-base font-semibold text-[#011D4F]">
             {price ? `${price.amount} ${price.currency}` : "Prix non défini"}
@@ -90,21 +92,12 @@ export function VehiclePreviewCard({
           ) : (
             <p className="mt-3 text-sm text-slate-500">Aucune description enregistrée.</p>
           )}
-
-          <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-            {specs.map((spec) => (
-              <div key={spec.label}>
-                <dt className="text-slate-500">{spec.label}</dt>
-                <dd className="text-[#071525]">{spec.value}</dd>
-              </div>
-            ))}
-          </dl>
         </div>
 
         <div>
           <h3 className="text-sm font-semibold text-[#011D4F]">Galerie</h3>
           {gallery.length > 0 ? (
-            <ul className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <ul className="mt-2 grid list-none grid-cols-1 gap-3 p-0">
               {gallery.map((item) => {
                 const thumbnail = thumbnails?.get(item.id);
 
@@ -126,18 +119,18 @@ export function VehiclePreviewCard({
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        <div className="flex h-full items-center justify-center px-2 text-center text-[10px] text-slate-500">
+                        <div className="flex h-full items-center justify-center px-2 text-center text-xs text-slate-500">
                           Aperçu indisponible
                         </div>
                       )}
 
                       {item.isPrimary ? (
-                        <span className="absolute left-1.5 top-1.5 rounded-full bg-[#0063DF] px-2 py-0.5 text-[10px] font-bold text-white shadow">
+                        <span className="absolute left-1.5 top-1.5 rounded-full bg-[#0063DF] px-2 py-0.5 text-xs font-bold text-white shadow">
                           Principale
                         </span>
                       ) : null}
                     </div>
-                    <p className="px-2 py-1.5 text-[11px] text-slate-500">
+                    <p className="px-3 py-1.5 text-xs text-slate-500">
                       {DOCUMENT_VISIBILITY_LABELS[item.visibility]}
                     </p>
                   </li>
@@ -170,6 +163,17 @@ export function VehiclePreviewCard({
             </div>
           ) : null}
 
+        <div>
+          <h3 className="text-sm font-semibold text-[#011D4F]">Caractéristiques</h3>
+          <dl className="mt-2 divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white text-sm">
+            {specs.map((spec) => (
+              <div key={spec.label} className="flex items-baseline justify-between gap-4 px-3 py-2">
+                <dt className="shrink-0 text-slate-500">{spec.label}</dt>
+                <dd className="text-right text-[#071525]">{spec.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
         </div>
       </div>
     </section>
