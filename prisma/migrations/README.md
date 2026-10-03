@@ -24,6 +24,7 @@ policies, buckets Storage) est écrit à la main dans les mêmes migrations, sou
 | M09 | `20261003000000_m09_bucket_images_prive` | bucket Storage `vehicle-images` passé en PRIVÉ ; images servies par la route `/api/media/[id]` (URL signée courte). Déployer le code avant d'appliquer la migration |
 | M10 | `20261003120000_m10_limite_images_vehicule` | déclencheur SQL : au plus 5 images par véhicule (vidéos hors quota), insertions concurrentes sérialisées par verrou de ligne. Aucune donnée modifiée ; sans dépendance de déploiement avec le code |
 | M11 | `20261003190000_m11_parametres_site` | table `site_settings` (une seule ligne imposée par CHECK) : numéro WhatsApp (E.164), téléphone, e-mail, adresse, ville, pays. RLS activée sans policy (lecture serveur uniquement). Valeur NULL = repli sur l'environnement. Additive, sans dépendance de déploiement |
+| M12 | `20261003200000_m12_pages_contenu` | table `site_pages` (clé = identifiant de page, limitée par CHECK à `a-propos` et `comment-ca-marche`) : titre et texte modifiables. RLS activée sans policy (lecture serveur uniquement). Aucune ligne insérée : sans enregistrement, le texte par défaut du code s'affiche. Additive, sans dépendance de déploiement |
 
 Tous les noms suivent le contrat canonique (`docs/12_Schema_Prisma_final_propose.docx`) : colonnes `snake_case`,
 rôles du personnel N:N via `staff_roles`, publication distincte du statut commercial (`vehicles.is_published`).

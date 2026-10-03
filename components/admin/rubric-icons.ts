@@ -21,6 +21,7 @@ export const RUBRIC_ICON_NAMES = [
   "personnel",
   "journal",
   "parametres",
+  "contenus",
   "compte",
 ] as const;
 

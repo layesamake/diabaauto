@@ -52,6 +52,7 @@ describe("navigation — catalogue", () => {
     const reglages = ADMIN_NAV.find((group) => group.key === "reglages");
 
     expect(reglages?.entries.map((entry) => entry.label)).toEqual([
+      "Contenus",
       "Marques et modèles",
       "Équipe",
       "Journal d'activité",

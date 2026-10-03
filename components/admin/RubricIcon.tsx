@@ -121,6 +121,13 @@ const PATHS: Record<RubricIconName, ReactNode> = {
       <path d="M5 4h4l1.5 4-2 1.3a10 10 0 0 0 5.2 5.2l1.3-2 4 1.5v4a2 2 0 0 1-2 2A15 15 0 0 1 3 6a2 2 0 0 1 2-2z" />
     </>
   ),
+  // Les contenus : un crayon sur une page.
+  contenus: (
+    <>
+      <path d="M5 20h4L19.5 9.5a2.1 2.1 0 0 0-3-3L6 17z" />
+      <path d="M14.5 8l3 3" />
+    </>
+  ),
   // Mon compte : un cadenas.
   compte: (
     <>

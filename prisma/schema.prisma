@@ -891,3 +891,12 @@ model SiteSettings {
 
   @@map("site_settings")
 }
+
+model SitePage {
+  slug      String   @id
+  title     String
+  body      String
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("site_pages")
+}
