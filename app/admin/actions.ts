@@ -10,6 +10,7 @@ import {
   finalizeImageUploads,
   reoptimizeImage,
   requestImageUploads,
+  setVideoPosterFromImage,
   type ReoptimizeResult,
   type UploadResult,
   type UploadTargets,
@@ -443,6 +444,28 @@ export async function reoptimizeMediaAction(formData: FormData): Promise<Reoptim
     };
   } catch (error) {
     return failure(error) as { error: AdminActionError };
+  }
+}
+
+/**
+ * Choisit l'affiche d'une vidéo parmi les photos du véhicule. `imageMediaId` vide = retour à
+ * l'affiche par défaut (la photo principale, reprise automatiquement par la fiche publique).
+ */
+export async function setVideoPosterAction(formData: FormData): Promise<AdminActionState> {
+  const actor = await getCurrentActor();
+  const videoMediaId = requiredText(formData, "videoMediaId");
+  const imageMediaId = readString(formData, "imageMediaId") ?? null;
+
+  try {
+    const result = await setVideoPosterFromImage(actor, videoMediaId, imageMediaId);
+    if (!result.ok) {
+      return { error: { code: "VALIDATION", message: result.error } };
+    }
+
+    revalidatePath(VEHICLE_DETAIL_PATTERN, "page");
+    return ok({ message: imageMediaId ? "Affiche de la vidéo mise à jour." : "Affiche par défaut rétablie." });
+  } catch (error) {
+    return failure(error);
   }
 }
 

@@ -54,6 +54,14 @@ export function fakeMediaRepository(initial: MediaRow[] = [], unknownVehicles: r
       items[index] = updated;
       return updated;
     },
+    async updateThumbnail(id, thumbnailPath) {
+      const index = items.findIndex((item) => item.id === id);
+      const current = items[index];
+      if (!current) throw new Error("media not found");
+      const updated = { ...current, thumbnailPath };
+      items[index] = updated;
+      return updated;
+    },
     async lockVehicle(vehicleId) {
       return !unknownVehicles.includes(vehicleId);
     },

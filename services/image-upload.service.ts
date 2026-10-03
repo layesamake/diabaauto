@@ -19,7 +19,13 @@ import {
   MAX_IMAGES_PER_VEHICLE,
   optimizeImage,
 } from "@/services/image-optimization.service";
-import { addMedia, getMedia, listMedia, replaceMediaFiles } from "@/services/media.service";
+import {
+  addMedia,
+  getMedia,
+  listMedia,
+  replaceMediaFiles,
+  setVideoThumbnail,
+} from "@/services/media.service";
 
 /**
  * Orchestration de l'ajout d'images véhicule (back-office).
@@ -286,6 +292,77 @@ export async function reoptimizeImage(actor: Actor, mediaId: string): Promise<Re
     await removeQuietly(storage, [media.storagePath, media.thumbnailPath]);
 
     return { ok: true, changed: true, beforeBytes: original.byteLength, afterBytes: data.sizeBytes };
+  } catch (error) {
+    return { ok: false, error: messageOf(error) };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Affiche d'une vidéo
+// ---------------------------------------------------------------------------
+
+export type VideoPosterResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * Choisit l'affiche d'une vidéo parmi les photos du véhicule, ou la retire (`imageMediaId: null`).
+ *
+ * Le fichier est **copié** sous `posters/`, jamais partagé avec la photo d'origine : supprimer
+ * ensuite cette photo ne doit pas vider l'affiche de la vidéo. L'ancienne affiche est effacée une
+ * fois la nouvelle enregistrée.
+ *
+ * Sans affiche, la fiche publique reprend d'elle-même la photo principale du véhicule : ce choix
+ * sert à en imposer une autre.
+ */
+export async function setVideoPosterFromImage(
+  actor: Actor,
+  videoMediaId: string,
+  imageMediaId: string | null,
+): Promise<VideoPosterResult> {
+  requireStaff(actor, "vehicle.edit");
+
+  try {
+    const video = await getMedia(actor, videoMediaId);
+    if (video.mediaType !== "VIDEO") {
+      return { ok: false, error: "Ce média n'est pas une vidéo." };
+    }
+
+    const storage = openStorage();
+    const previousPoster = video.thumbnailPath;
+
+    if (imageMediaId === null) {
+      await setVideoThumbnail(actor, video.id, null);
+      await removeQuietly(storage, [previousPoster]);
+      return { ok: true };
+    }
+
+    const image = await getMedia(actor, imageMediaId);
+    if (image.mediaType !== "IMAGE") {
+      return { ok: false, error: "L'affiche doit être une photo." };
+    }
+    // Garde de portée : une photo d'un autre véhicule n'a rien à faire ici.
+    if (image.vehicleId !== video.vehicleId) {
+      return { ok: false, error: "Cette photo appartient à un autre véhicule." };
+    }
+
+    const sourcePath = image.thumbnailPath ?? image.storagePath;
+    if (!sourcePath) {
+      return { ok: false, error: "Cette photo n'a pas de fichier utilisable." };
+    }
+
+    const bytes = await storage.downloadFile(sourcePath, MAX_FILE_SIZE_BYTES);
+    const posterPath = `vehicles/${video.vehicleId}/posters/${randomUUID()}.webp`;
+    await storage.uploadFile(posterPath, bytes, "image/webp");
+
+    try {
+      await setVideoThumbnail(actor, video.id, posterPath);
+    } catch (error) {
+      await removeQuietly(storage, [posterPath]);
+      throw error;
+    }
+
+    await removeQuietly(storage, [previousPoster]);
+
+    return { ok: true };
   } catch (error) {
     return { ok: false, error: messageOf(error) };
   }

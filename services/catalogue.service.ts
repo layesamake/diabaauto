@@ -398,18 +398,27 @@ export function toCatalogueMedia(
   row: CatalogueVehicleRow,
   config?: MediaConfig,
 ): CatalogueMediaItem[] {
+  const resolved = config ?? defaultMediaConfig();
   const items: CatalogueMediaItem[] = [];
 
+  // Affiche de repli : la photo principale du véhicule. Une vidéo sans affiche enregistrée vaut
+  // mieux illustrée par la voiture elle-même que par un aplat — et cette image vient de notre
+  // stockage, donc rien n'est demandé à l'hébergeur de la vidéo avant le clic (T75).
+  const fallbackPoster = toPrimaryImage(row, resolved)?.thumbnailUrl ?? null;
+
   for (const media of row.media) {
-    const url = resolvePublicMediaUrl(media, config);
+    const url = resolvePublicMediaUrl(media, resolved);
     if (!url) continue;
+
+    const ownThumbnail = toThumbnailUrl(media, resolved);
 
     items.push({
       id: media.id,
       mediaType: media.mediaType,
       url,
       alt: imageAlt(row),
-      thumbnailUrl: toThumbnailUrl(media, config ?? defaultMediaConfig()),
+      thumbnailUrl:
+        media.mediaType === "VIDEO" ? (ownThumbnail ?? fallbackPoster) : ownThumbnail,
     });
   }
 

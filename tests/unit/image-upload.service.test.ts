@@ -59,6 +59,7 @@ const {
   finalizeImageUploads,
   reoptimizeImage,
   requestImageUploads,
+  setVideoPosterFromImage,
 } = await import("@/services/image-upload.service");
 const { RemoteFetchError } = await import("@/lib/security/safe-remote-fetch");
 
@@ -361,5 +362,96 @@ describe("reoptimizeImage", () => {
 
     await expect(reoptimizeImage(staffActor(), video.id)).resolves.toMatchObject({ ok: false });
     await expect(reoptimizeImage(staffActor(["vehicle.view"]), video.id)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+
+describe("setVideoPosterFromImage", () => {
+  const VIDEO = mediaUuid(800);
+
+  function videoRow(thumbnailPath: string | null = null): MediaRow {
+    return {
+      id: VIDEO,
+      vehicleId: VEHICLE,
+      mediaType: "VIDEO",
+      storagePath: null,
+      externalUrl: "https://youtu.be/yNjOOybz1t8",
+      thumbnailPath,
+      category: null,
+      displayOrder: 9,
+      isPrimary: false,
+      visibility: "PUBLIC",
+    };
+  }
+
+  it("copie la photo choisie plutôt que de la partager", async () => {
+    const photo = imageRow(1);
+    useRepo([videoRow(), photo]);
+    mocks.files.set(photo.thumbnailPath as string, Buffer.from("octets de la photo"));
+
+    expect(await setVideoPosterFromImage(staffActor(), VIDEO, photo.id)).toEqual({ ok: true });
+
+    const poster = repo.all().find((item) => item.id === VIDEO)?.thumbnailPath as string;
+    expect(poster).toMatch(new RegExp(`^vehicles/${VEHICLE}/posters/[0-9a-f-]{36}\\.webp$`));
+    // Fichier distinct : supprimer la photo plus tard ne doit pas vider l'affiche.
+    expect(poster).not.toBe(photo.thumbnailPath);
+    expect(mocks.files.get(poster)?.toString()).toBe("octets de la photo");
+    expect(mocks.files.has(photo.thumbnailPath as string)).toBe(true);
+  });
+
+  it("remplace l'affiche précédente et efface son fichier", async () => {
+    const ancienne = `vehicles/${VEHICLE}/posters/ancienne.webp`;
+    const photo = imageRow(1);
+    useRepo([videoRow(ancienne), photo]);
+    mocks.files.set(ancienne, Buffer.from("ancienne"));
+    mocks.files.set(photo.thumbnailPath as string, Buffer.from("nouvelle"));
+
+    await setVideoPosterFromImage(staffActor(), VIDEO, photo.id);
+
+    expect(mocks.files.has(ancienne)).toBe(false);
+  });
+
+  it("retire l'affiche et son fichier quand aucune photo n'est choisie", async () => {
+    const ancienne = `vehicles/${VEHICLE}/posters/ancienne.webp`;
+    useRepo([videoRow(ancienne)]);
+    mocks.files.set(ancienne, Buffer.from("ancienne"));
+
+    expect(await setVideoPosterFromImage(staffActor(), VIDEO, null)).toEqual({ ok: true });
+
+    expect(repo.all()[0]?.thumbnailPath).toBeNull();
+    expect(mocks.files.has(ancienne)).toBe(false);
+  });
+
+  it("refuse une photo d'un autre véhicule", async () => {
+    const etrangere = { ...imageRow(1), vehicleId: OTHER_VEHICLE };
+    useRepo([videoRow(), etrangere]);
+    mocks.files.set(etrangere.thumbnailPath as string, Buffer.from("x"));
+
+    const result = await setVideoPosterFromImage(staffActor(), VIDEO, etrangere.id);
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringMatching(/autre véhicule/) });
+    expect(repo.all().find((item) => item.id === VIDEO)?.thumbnailPath).toBeNull();
+  });
+
+  it("refuse une affiche posée sur une image, et une vidéo comme affiche", async () => {
+    const photo = imageRow(1);
+    useRepo([videoRow(), photo]);
+
+    await expect(setVideoPosterFromImage(staffActor(), photo.id, photo.id)).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/pas une vidéo/),
+    });
+    await expect(setVideoPosterFromImage(staffActor(), VIDEO, VIDEO)).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/doit être une photo/),
+    });
+  });
+
+  it("exige la permission vehicle.edit", async () => {
+    useRepo([videoRow(), imageRow(1)]);
+
+    await expect(setVideoPosterFromImage(staffActor(["vehicle.view"]), VIDEO, null)).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
   });
 });
