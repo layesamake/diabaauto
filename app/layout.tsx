@@ -41,7 +41,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <footer className="mt-16 bg-[#011D4F] px-4 py-8 text-white">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 text-sm">
             <span>© Diaba Auto — Véhicules neufs et d’occasion Chine / Sénégal.</span>
-            {measurementId ? <CookiePreferencesButton /> : null}
+            <span className="flex items-center gap-4">
+              <Link href="/mentions-legales" className="underline underline-offset-2 hover:text-[#66E5FC]">
+                Mentions légales et confidentialité
+              </Link>
+              {measurementId ? <CookiePreferencesButton /> : null}
+            </span>
           </div>
         </footer>
         <AnalyticsProvider measurementId={measurementId} />

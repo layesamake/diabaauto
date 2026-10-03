@@ -12,7 +12,7 @@ import { z } from "zod";
  * Format du texte : voir `page-body.ts`.
  */
 
-export const SITE_PAGE_SLUGS = ["a-propos", "comment-ca-marche"] as const;
+export const SITE_PAGE_SLUGS = ["a-propos", "comment-ca-marche", "mentions-legales"] as const;
 
 export type SitePageSlug = (typeof SITE_PAGE_SLUGS)[number];
 
@@ -57,6 +57,30 @@ export const SITE_PAGES: Readonly<Record<SitePageSlug, SitePageDefinition>> = {
       "Écrivez-nous sur WhatsApp ou depuis la page Contact. Un message est une demande d'information : il ne vaut ni réservation, ni commande.",
       "## 4. Suivre votre demande",
       "Avec un compte, vous retrouvez vos demandes et vos commandes dans « My Diaba Auto ». Aucun paiement n'est demandé en ligne.",
+    ].join("\n\n"),
+  },
+  "mentions-legales": {
+    slug: "mentions-legales",
+    label: "Mentions légales et confidentialité",
+    publicPath: "/mentions-legales",
+    defaultTitle: "Mentions légales et confidentialité",
+    description:
+      "Éditeur du site, données personnelles, cookies et mesure d'audience de Diaba Auto.",
+    defaultBody: [
+      "Cette page réunit les informations légales du site Diaba Auto et explique comment vos données sont traitées. Les éléments entre crochets sont à compléter par Diaba Auto.",
+      "## Éditeur du site",
+      "Site édité par Diaba Auto. [À compléter : forme juridique, immatriculation, adresse du siège, nom du responsable de la publication.]",
+      "## Hébergement",
+      "Le site est hébergé par Vercel et ses données par Supabase. [À compléter si besoin : coordonnées des hébergeurs.]",
+      "## Données personnelles",
+      "Lorsque vous nous contactez ou créez un compte, nous recueillons les informations que vous fournissez (par exemple nom, téléphone, e-mail et le contenu de votre message) dans le seul but de répondre à votre demande et de suivre votre dossier. Ces données ne sont pas vendues.",
+      "## Cookies et mesure d'audience",
+      "Le site peut utiliser Google Analytics pour mesurer son audience (pages consultées, clics vers WhatsApp). Cette mesure n'est activée qu'après votre accord : rien n'est envoyé tant que vous n'avez pas cliqué sur « Accepter » dans le bandeau, et vous pouvez changer d'avis à tout moment avec « Gérer les cookies », en bas de chaque page.",
+      "Aucun message, e-mail ou numéro de téléphone n'est transmis à l'outil de mesure. La publicité et la personnalisation Google sont désactivées. Si vous refusez, les cookies de mesure sont supprimés.",
+      "## Vos droits",
+      "Vous pouvez demander l'accès à vos données, leur rectification ou leur suppression en nous écrivant depuis la page Contact. [À compléter : référence à la réglementation applicable et délai de réponse.]",
+      "## Contact",
+      "Pour toute question relative à ces informations, utilisez la page Contact du site.",
     ].join("\n\n"),
   },
 };
