@@ -115,6 +115,12 @@ const PATHS: Record<RubricIconName, ReactNode> = {
       <path d="M9 12h6M9 15.5h6" />
     </>
   ),
+  // Les paramètres du site : une fiche de coordonnées (combiné téléphonique).
+  parametres: (
+    <>
+      <path d="M5 4h4l1.5 4-2 1.3a10 10 0 0 0 5.2 5.2l1.3-2 4 1.5v4a2 2 0 0 1-2 2A15 15 0 0 1 3 6a2 2 0 0 1 2-2z" />
+    </>
+  ),
   // Mon compte : un cadenas.
   compte: (
     <>

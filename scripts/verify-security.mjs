@@ -76,6 +76,7 @@ async function restGet(path) {
 /** Tables dont l'accès anonyme doit être refusé ou rendu vide par RLS. */
 const PRIVATE_TABLES = [
   "audit_logs",
+  "site_settings",
   "profiles",
   "customer_profiles",
   "staff_profiles",
