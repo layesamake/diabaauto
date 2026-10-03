@@ -21,6 +21,9 @@ function memoryStorage(): VehicleStorageService {
     async createSignedUrl(path) {
       return `https://signed.example/${path}`;
     },
+    async createSignedUrls(paths) {
+      return new Map(paths.filter((path) => mocks.files.has(path)).map((path) => [path, `https://signed.example/${path}`]));
+    },
     async createSignedUploadUrl(path) {
       return { bucket: "vehicle-images", path, token: `token-${path}`, signedUrl: `https://upload.example/${path}` };
     },

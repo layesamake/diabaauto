@@ -33,6 +33,8 @@ export type SignedUploadTarget = {
 export type VehicleStorageService = {
   readonly bucket: string;
   createSignedUrl(storagePath: string, options?: { ttlSeconds?: number }): Promise<string>;
+  /** URL signées pour plusieurs chemins, en UN seul appel réseau (galeries, aperçus). */
+  createSignedUrls(storagePaths: readonly string[], options?: { ttlSeconds?: number }): Promise<Map<string, string>>;
   createSignedUploadUrl(storagePath: string): Promise<SignedUploadTarget>;
   /** Upload direct d'un buffer dans le bucket via service_role (upsert = false). */
   uploadFile(storagePath: string, data: Buffer, contentType: string): Promise<void>;
@@ -102,6 +104,35 @@ export function createVehicleStorageService(
       }
 
       return data.signedUrl;
+    },
+
+    async createSignedUrls(
+      storagePaths: readonly string[],
+      options?: { ttlSeconds?: number },
+    ): Promise<Map<string, string>> {
+      const resolved = new Map<string, string>();
+      const unique = [...new Set(storagePaths.filter((path) => path.trim().length > 0))];
+      if (unique.length === 0) {
+        return resolved;
+      }
+
+      const { client, bucket } = ensureConfigured();
+      const ttl = options?.ttlSeconds ?? config.ttlSeconds;
+      const { data, error } = await client.storage.from(bucket).createSignedUrls(unique, ttl);
+
+      if (error || !data) {
+        throw new AppError("INTERNAL", "URL signée indisponible.");
+      }
+
+      // Un chemin absent du bucket ressort en erreur sans faire échouer les autres : l'appelant
+      // affiche alors un repli pour cette image seule.
+      for (const entry of data) {
+        if (entry.path && entry.signedUrl) {
+          resolved.set(entry.path, entry.signedUrl);
+        }
+      }
+
+      return resolved;
     },
 
     async createSignedUploadUrl(storagePath: string): Promise<SignedUploadTarget> {

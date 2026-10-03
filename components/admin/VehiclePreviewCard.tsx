@@ -1,7 +1,6 @@
 import {
   DOCUMENT_VISIBILITY_LABELS,
   LOGISTICS_LOCATION_LABELS,
-  MEDIA_TYPE_LABELS,
   VEHICLE_CONDITION_LABELS,
   formatDate,
   labelFor,
@@ -13,20 +12,27 @@ import type { ResolvedPrice } from "@/services/pricing.service";
 import type { VehicleDetail } from "@/services/vehicle.service";
 
 /**
- * Aperçu de fiche (« fiche démo » du lot L2) : ce que le client verrait une fois le véhicule publié.
+ * Aperçu de fiche : ce que le client verrait une fois le véhicule publié.
  *
- * Aucun identifiant Supabase n'étant configuré (D15), aucun fichier n'est réellement servi : la
- * galerie affiche les références de stockage enregistrées, et non des images chargées. Les données
- * internes d'approvisionnement ne sont jamais reprises ici.
+ * La galerie affiche les vraies vignettes, signées côté serveur par
+ * `services/media-preview.service.ts` — et non la route publique `/api/media`, qui refuse les
+ * fiches non publiées, c'est-à-dire justement celles que cet aperçu sert à vérifier.
+ *
+ * Une image sans vignette disponible (stockage non configuré, fichier absent) laisse place à un
+ * repli lisible : jamais d'image cassée. Les données internes d'approvisionnement ne sont jamais
+ * reprises ici.
  */
 export function VehiclePreviewCard({
   vehicle,
   media,
+  thumbnails,
   price,
   names,
 }: {
   vehicle: VehicleDetail;
   media: MediaRow[];
+  /** URL de vignette par identifiant de média (`resolveMediaThumbnails`). */
+  thumbnails?: Map<string, string>;
   price: ResolvedPrice | null;
   names: {
     brands: SelectOption[];
@@ -43,7 +49,6 @@ export function VehiclePreviewCard({
   const gallery = media
     .filter((item) => item.mediaType === "IMAGE" && item.visibility === "PUBLIC")
     .sort((left, right) => Number(right.isPrimary) - Number(left.isPrimary) || left.displayOrder - right.displayOrder);
-  const primary = gallery.find((item) => item.isPrimary) ?? null;
   const videos = media.filter((item) => item.mediaType === "VIDEO" && item.visibility === "PUBLIC");
 
   const specs: { label: string; value: string }[] = [
@@ -70,8 +75,7 @@ export function VehiclePreviewCard({
         Aperçu de la fiche
       </h2>
       <p className="mt-2 text-sm text-[#0354A3]">
-        Rendu indicatif réservé au back-office : aucun fichier média n&apos;est servi tant qu&apos;aucun stockage
-        n&apos;est configuré.
+        Rendu indicatif réservé au back-office : la mise en page du site public peut différer.
       </p>
 
       <div className="mt-4 grid gap-6 lg:grid-cols-2">
@@ -100,22 +104,45 @@ export function VehiclePreviewCard({
         <div>
           <h3 className="text-sm font-semibold text-[#011D4F]">Galerie</h3>
           {gallery.length > 0 ? (
-            <ul className="mt-2 grid gap-3 sm:grid-cols-2">
-              {gallery.map((item) => (
-                <li
-                  key={item.id}
-                  className={`rounded-lg border p-3 text-xs ${
-                    item.isPrimary ? "border-[#0063DF] bg-white" : "border-slate-200 bg-white"
-                  }`}
-                >
-                  <p className="font-semibold text-[#011D4F]">
-                    {MEDIA_TYPE_LABELS[item.mediaType]}
-                    {item.isPrimary ? " — principale" : ""}
-                  </p>
-                  <p className="mt-1 break-all text-slate-600">{orEmpty(item.storagePath)}</p>
-                  <p className="mt-1 text-slate-500">{DOCUMENT_VISIBILITY_LABELS[item.visibility]}</p>
-                </li>
-              ))}
+            <ul className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {gallery.map((item) => {
+                const thumbnail = thumbnails?.get(item.id);
+
+                return (
+                  <li
+                    key={item.id}
+                    className={`overflow-hidden rounded-lg border bg-white ${
+                      item.isPrimary ? "border-[#0063DF] ring-1 ring-[#0063DF]" : "border-slate-200"
+                    }`}
+                  >
+                    <div className="relative aspect-[4/3] bg-slate-100">
+                      {thumbnail ? (
+                        // URL signée de courte durée : `next/image` ne sait pas la servir (domaine
+                        // non déclaré, et son cache survivrait à l'expiration du lien).
+                        <img
+                          src={thumbnail}
+                          alt=""
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center px-2 text-center text-[10px] text-slate-500">
+                          Aperçu indisponible
+                        </div>
+                      )}
+
+                      {item.isPrimary ? (
+                        <span className="absolute left-1.5 top-1.5 rounded-full bg-[#0063DF] px-2 py-0.5 text-[10px] font-bold text-white shadow">
+                          Principale
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="px-2 py-1.5 text-[11px] text-slate-500">
+                      {DOCUMENT_VISIBILITY_LABELS[item.visibility]}
+                    </p>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p className="mt-2 text-sm text-slate-600">
@@ -143,11 +170,6 @@ export function VehiclePreviewCard({
             </div>
           ) : null}
 
-          {primary ? (
-            <p className="mt-4 text-xs text-slate-500">
-              Image principale enregistrée : <span className="break-all">{orEmpty(primary.storagePath)}</span>
-            </p>
-          ) : null}
         </div>
       </div>
     </section>
