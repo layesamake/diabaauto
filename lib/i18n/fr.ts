@@ -92,6 +92,8 @@ export const fr = {
     galleryEmpty: "Aucun média public n’est disponible pour ce véhicule.",
     galleryThumbnail: (index: number) => `Média ${index}`,
     videoLabel: "Vidéo",
+    videoPlay: "Lire la vidéo",
+    videoPrivacy: "La vidéo n'est chargée qu'après ce clic.",
     summaryTitle: "Résumé technique",
     descriptionTitle: "Description",
     specsTitle: "Caractéristiques",

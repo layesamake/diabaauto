@@ -6,9 +6,9 @@
  * - HSTS **en production uniquement** ;
  * - `X-Content-Type-Options`, `Referrer-Policy`, protection clickjacking (`frame-ancestors`
  *   + `X-Frame-Options`) ;
- * - aucune source externe non nécessaire : la seule origine distante autorisée est le projet
+ * - aucune source externe non nécessaire : les seules origines distantes autorisées sont le projet
  *   Supabase réellement configuré (`NEXT_PUBLIC_SUPABASE_URL`), pour l'API REST, l'API Auth, le
- *   Storage et le canal temps réel (WebSocket).
+ *   Storage et le canal temps réel (WebSocket), et les deux lecteurs vidéo ci-dessous.
  *
  * Module **pur** : aucune lecture d'environnement, aucun effet de bord. `next.config.ts` fournit
  * l'environnement applicatif et l'URL Supabase ; les tests les injectent directement.
@@ -28,6 +28,21 @@ export type SecurityHeadersInput = {
   /** URL du projet Supabase (`NEXT_PUBLIC_SUPABASE_URL`), absente en développement non configuré. */
   supabaseUrl?: string | null;
 };
+
+/**
+ * Lecteurs vidéo autorisés dans une `iframe`, et eux seuls (décision T74).
+ *
+ * `frame-src` est la SEULE directive qui les mentionne : ils ne peuvent ni exécuter de script dans
+ * la page, ni ouvrir de connexion en son nom. La galerie ne charge l'iframe qu'au clic du visiteur,
+ * donc aucune requête ne part vers ces domaines à l'ouverture d'une fiche.
+ *
+ * YouTube est servi par `youtube-nocookie.com` : pas de cookie de suivi avant lecture. Toute
+ * addition ici élargit la surface d'attaque — elle se décide, elle ne s'ajoute pas par confort.
+ */
+export const VIDEO_FRAME_ORIGINS = [
+  "https://www.youtube-nocookie.com",
+  "https://player.vimeo.com",
+] as const;
 
 /** Origines `https` et `wss` du projet Supabase : API REST, Auth, Storage et Realtime. */
 export function supabaseOrigins(supabaseUrl?: string | null): string[] {
@@ -82,7 +97,7 @@ export function buildContentSecurityPolicy(input: SecurityHeadersInput): string 
     ["connect-src", ["'self'", ...supabase]],
     ["worker-src", ["'self'", "blob:"]],
     ["manifest-src", ["'self'"]],
-    ["frame-src", ["'none'"]],
+    ["frame-src", [...VIDEO_FRAME_ORIGINS]],
   ];
 
   const policy = directives.map(([name, values]) => `${name} ${origins(...values)}`).join("; ");
