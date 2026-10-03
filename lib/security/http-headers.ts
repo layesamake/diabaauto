@@ -27,7 +27,29 @@ export type SecurityHeadersInput = {
   appEnv: SecurityAppEnv;
   /** URL du projet Supabase (`NEXT_PUBLIC_SUPABASE_URL`), absente en développement non configuré. */
   supabaseUrl?: string | null;
+  /**
+   * Identifiant de mesure GA4, uniquement si la mesure est configurée (`readAnalyticsMeasurementId`).
+   * Absent : aucune origine Google n'est autorisée.
+   */
+  analyticsMeasurementId?: string | null;
 };
+
+/**
+ * Origines Google Analytics 4, ajoutées à la CSP SEULEMENT quand la mesure est configurée (T88).
+ * Les jokers `*.google-analytics.com` / `*.analytics.google.com` sont imposés par les points de
+ * collecte régionaux de GA4 (`region1.google-analytics.com`…). Le script ne se charge qu'après
+ * consentement du visiteur : la CSP l'autorise, elle ne le déclenche pas.
+ */
+export const ANALYTICS_ORIGINS = {
+  script: ["https://www.googletagmanager.com"],
+  connect: [
+    "https://www.google-analytics.com",
+    "https://*.google-analytics.com",
+    "https://*.analytics.google.com",
+    "https://www.googletagmanager.com",
+  ],
+  img: ["https://www.google-analytics.com", "https://*.google-analytics.com", "https://www.googletagmanager.com"],
+} as const;
 
 /**
  * Lecteurs vidéo autorisés dans une `iframe`, et eux seuls (décision T74).
@@ -81,7 +103,13 @@ export function buildContentSecurityPolicy(input: SecurityHeadersInput): string 
   const isProduction = input.appEnv === "production";
   const isDevelopment = input.appEnv === "development";
 
-  const scriptSrc = ["'self'", "'unsafe-inline'", isDevelopment ? "'unsafe-eval'" : ""];
+  const analytics = Boolean(input.analyticsMeasurementId?.trim());
+  const scriptSrc = [
+    "'self'",
+    "'unsafe-inline'",
+    isDevelopment ? "'unsafe-eval'" : "",
+    ...(analytics ? ANALYTICS_ORIGINS.script : []),
+  ];
 
   const directives: Array<[string, string[]]> = [
     ["default-src", ["'self'"]],
@@ -91,10 +119,10 @@ export function buildContentSecurityPolicy(input: SecurityHeadersInput): string 
     ["object-src", ["'none'"]],
     ["script-src", scriptSrc],
     ["style-src", ["'self'", "'unsafe-inline'"]],
-    ["img-src", ["'self'", "data:", "blob:", ...supabaseHttp]],
+    ["img-src", ["'self'", "data:", "blob:", ...supabaseHttp, ...(analytics ? ANALYTICS_ORIGINS.img : [])]],
     ["media-src", ["'self'", "blob:", ...supabaseHttp]],
     ["font-src", ["'self'", "data:"]],
-    ["connect-src", ["'self'", ...supabase]],
+    ["connect-src", ["'self'", ...supabase, ...(analytics ? ANALYTICS_ORIGINS.connect : [])]],
     ["worker-src", ["'self'", "blob:"]],
     ["manifest-src", ["'self'"]],
     ["frame-src", [...VIDEO_FRAME_ORIGINS]],

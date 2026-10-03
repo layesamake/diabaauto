@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { trackEvent } from "@/lib/analytics/events";
 import { toggleFavoriteAction } from "@/app/my-diaba-auto/favorites-actions";
 import { addLocalFavorite, isLocalFavorite, removeLocalFavorite } from "@/lib/favorites/local-store";
 import { favoritesFr } from "@/lib/i18n/favorites.fr";
@@ -57,6 +58,7 @@ export function FavoriteButton({
         removeLocalFavorite(vehicleId);
       }
       setIsFavorite(nextFavorite);
+      if (nextFavorite) trackEvent("favorite_add", { vehicle_id: vehicleId });
       setPending(false);
       return;
     }
@@ -68,6 +70,7 @@ export function FavoriteButton({
         return;
       }
       setIsFavorite(nextFavorite);
+      if (nextFavorite) trackEvent("favorite_add", { vehicle_id: vehicleId });
     } catch {
       setError(favoritesFr.button.genericError);
     } finally {

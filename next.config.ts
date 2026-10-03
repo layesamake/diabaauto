@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { readAnalyticsMeasurementId } from "./lib/analytics/config";
 import { buildSecurityHeaders, type SecurityAppEnv } from "./lib/security/http-headers";
 
 /**
@@ -21,6 +22,7 @@ function resolveAppEnv(): SecurityAppEnv {
 const securityHeaders = buildSecurityHeaders({
   appEnv: resolveAppEnv(),
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  analyticsMeasurementId: readAnalyticsMeasurementId(process.env),
 });
 
 const nextConfig: NextConfig = {

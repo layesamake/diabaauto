@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { cache } from "react";
+import { TrackOnMount } from "@/components/analytics/TrackOnMount";
 import { getCurrentActor } from "@/lib/auth/session";
 import { buildCatalogueMetadata } from "@/lib/seo";
 import { loadPublicData, parsePublicInput } from "@/components/public/public-data";
@@ -114,8 +115,20 @@ export default async function CataloguePage({ searchParams }: PageProps) {
     loadFavoriteState(actor),
   ]);
 
+  // Recherche ou filtres actifs : on mesure leur USAGE (quels filtres, y a-t-il un texte), jamais le texte saisi.
+  const searchFilterNames = (
+    ["brandId", "modelId", "bodyTypeId", "fuelTypeId", "transmissionTypeId", "condition", "logisticsLocation", "yearMin", "yearMax"] as const
+  ).filter((name) => filters[name] !== undefined);
+  const hasSearchActivity = Boolean(filters.search) || searchFilterNames.length > 0;
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
+      {hasSearchActivity ? (
+        <TrackOnMount
+          event="catalogue_search"
+          params={{ has_query: Boolean(filters.search), filters: searchFilterNames.join(",") }}
+        />
+      ) : null}
       <CatalogueHeader />
 
       {facets.status === "ok" ? (
